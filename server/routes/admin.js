@@ -7,8 +7,9 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const {
   getAllOrders, getOrderStats, getAllStock, deleteStockCategory,
-  updateOrderStatus, addAccount, getPrices, updatePrices, db, bucket
+  updateOrderStatus, addAccount, getPrices, updatePrices, db
 } = require('../firebase');
+const { uploadFileToDrive } = require('../googleDrive');
 
 // Multer for file uploads (temp storage)
 const upload = multer({
@@ -138,7 +139,7 @@ router.delete('/stock', adminAuth, async (req, res) => {
   }
 });
 
-// Upload account files (ZIP or folder zipped)
+// Upload account files ke Google Drive
 router.post('/stock/upload', adminAuth, upload.array('files', 500), async (req, res) => {
   try {
     const { type, garansi } = req.body;
@@ -147,32 +148,40 @@ router.post('/stock/upload', adminAuth, upload.array('files', 500), async (req, 
     }
     const garansiBool = garansi === 'true' || garansi === true;
     const results = [];
+    const errors = [];
 
     for (const file of req.files) {
-      const destination = `accounts/${type}_${garansiBool ? 'garansi' : 'no_garansi'}/${uuidv4()}_${file.originalname}`;
-      
-      // Target local path for permanent storage
-      const targetPath = path.join(__dirname, '../../storage/', destination);
-      const targetDir = path.dirname(targetPath);
-      
-      // Ensure directory exists
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
+      const uniqueFileName = `${uuidv4()}_${file.originalname}`;
+      let driveFileId = null;
+
+      try {
+        // Upload file temp ke Google Drive
+        driveFileId = await uploadFileToDrive(
+          file.path,
+          uniqueFileName,
+          file.mimetype || 'application/octet-stream'
+        );
+
+        // Simpan ke Firestore dengan driveFileId
+        await addAccount(type, garansiBool, driveFileId, file.originalname);
+
+        results.push({ fileName: file.originalname, driveFileId });
+      } catch (uploadErr) {
+        console.error(`Failed to upload ${file.originalname}:`, uploadErr.message);
+        errors.push({ fileName: file.originalname, error: uploadErr.message });
+      } finally {
+        // Hapus temp file lokal setelah upload (berhasil atau tidak)
+        try { fs.unlinkSync(file.path); } catch (_) {}
       }
-
-      // Copy file to permanent storage
-      fs.copyFileSync(file.path, targetPath);
-
-      // Add to Firestore (store the relative path)
-      await addAccount(type, garansiBool, destination, file.originalname);
-
-      // Clean up temp
-      fs.unlinkSync(file.path);
-
-      results.push({ fileName: file.originalname, destination });
     }
 
-    res.json({ success: true, uploaded: results.length, results });
+    res.json({
+      success: errors.length === 0,
+      uploaded: results.length,
+      failed: errors.length,
+      results,
+      ...(errors.length > 0 ? { errors } : {}),
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

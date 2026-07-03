@@ -5,4 +5,5 @@ storage/temp-zips/
 *.zip
 serviceAccountKey.json
 serviceAccountKey.json.json
+googleServiceAccount.json
 

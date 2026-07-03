@@ -1,13 +1,12 @@
 const archiver = require('archiver');
 const path = require('path');
 const fs = require('fs');
-const { bucket } = require('./firebase');
 const os = require('os');
 const AdmZip = require('adm-zip');
 
 /**
- * Download files from Firebase Storage and ZIP them
- * @param {Array} accounts - array of account objects with storagePath
+ * Download files from Google Drive (or fallback local) and ZIP them.
+ * @param {Array} accounts - array of account objects with driveFileId (new) or storagePath (legacy)
  * @param {string} orderId - order ID for naming the ZIP
  * @returns {string} local path to the generated ZIP
  */
@@ -18,43 +17,58 @@ async function createZipFromAccounts(accounts, orderId) {
   // Create temp directory
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-  // Copy and extract each account folder/file from Local Storage
+  // Lazy-load Google Drive helper (avoid crash if env not configured for legacy-only orders)
+  let downloadFileFromDrive;
+  try {
+    downloadFileFromDrive = require('./googleDrive').downloadFileFromDrive;
+  } catch (_) {
+    downloadFileFromDrive = null;
+  }
+
   const downloadPromises = accounts.map(async (acc) => {
-    const fileName = acc.fileName || path.basename(acc.storagePath);
+    const fileName = acc.fileName || path.basename(acc.driveFileId || acc.storagePath || 'account');
     const folderName = fileName.endsWith('.zip') ? fileName.slice(0, -4) : fileName;
-    
-    // Create a sub-folder for this specific account
+
+    // Create a sub-folder for this account
     const accountDir = path.join(tempDir, folderName);
     if (!fs.existsSync(accountDir)) fs.mkdirSync(accountDir, { recursive: true });
 
-    // Target extraction path
     const destPath = path.join(accountDir, fileName);
-    // Source path from local storage
-    const sourcePath = path.join(__dirname, '../storage/', acc.storagePath);
 
     try {
-      if (!fs.existsSync(sourcePath)) {
-        throw new Error('Local file not found: ' + sourcePath);
+      if (acc.driveFileId && downloadFileFromDrive) {
+        // ─── BARU: Download dari Google Drive ────────────────────────────────
+        console.log(`📥 Drive download: ${fileName} (ID: ${acc.driveFileId})`);
+        await downloadFileFromDrive(acc.driveFileId, destPath);
+      } else if (acc.storagePath) {
+        // ─── LEGACY: Baca dari local storage ─────────────────────────────────
+        const sourcePath = path.join(__dirname, '../storage/', acc.storagePath);
+        if (!fs.existsSync(sourcePath)) {
+          throw new Error('Local file not found: ' + sourcePath);
+        }
+        console.log(`📂 Local fallback: ${acc.storagePath}`);
+        fs.copyFileSync(sourcePath, destPath);
+      } else {
+        throw new Error(`Akun ${acc.id}: tidak ada driveFileId maupun storagePath`);
       }
-      fs.copyFileSync(sourcePath, destPath);
 
-      // Extract the zip contents into the account folder and delete the zip file itself
-      if (fileName.endsWith('.zip')) {
+      // Extract zip contents jika file-nya .zip
+      if (fileName.endsWith('.zip') && fs.existsSync(destPath)) {
         const zip = new AdmZip(destPath);
         zip.extractAllTo(accountDir, true);
         fs.unlinkSync(destPath);
       }
     } catch (err) {
-      console.error(`Failed to process ${acc.storagePath}:`, err.message);
+      console.error(`Failed to process account ${acc.id || acc.fileName}:`, err.message);
     }
   });
 
   await Promise.all(downloadPromises);
 
-  // Create ZIP
+  // Create ZIP archive
   await new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    // Use compression level 1 for blazing fast zipping (level 9 is extremely slow)
+    // Level 1: tercepat (level 9 sangat lambat untuk file besar)
     const archive = archiver('zip', { zlib: { level: 1 } });
 
     output.on('close', resolve);
@@ -64,7 +78,7 @@ async function createZipFromAccounts(accounts, orderId) {
     archive.finalize();
   });
 
-  // Clean up temp dir
+  // Bersihkan temp dir
   fs.rmSync(tempDir, { recursive: true, force: true });
 
   return zipPath;

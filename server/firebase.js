@@ -29,12 +29,10 @@ if (fs.existsSync(jsonKeyPath)) {
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   });
 }
 
 const db = admin.firestore();
-const bucket = admin.storage().bucket();
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
 async function getUser(telegramId) {
@@ -127,6 +125,8 @@ async function getAllStock() {
 async function deleteStockCategory(type, garansi) {
   const fs = require('fs');
   const path = require('path');
+  const { deleteFileFromDrive } = require('./googleDrive');
+
   const snapshot = await db.collection('accounts')
     .where('type', '==', type)
     .where('garansi', '==', garansi)
@@ -134,25 +134,40 @@ async function deleteStockCategory(type, garansi) {
     .get();
 
   const batch = db.batch();
+  const deletePromises = [];
+
   snapshot.docs.forEach(doc => {
     batch.update(doc.ref, {
       status: 'deleted',
       deletedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    
+
     const data = doc.data();
+
+    // Hapus dari Google Drive jika ada driveFileId
+    if (data.driveFileId) {
+      deletePromises.push(
+        deleteFileFromDrive(data.driveFileId).catch(err =>
+          console.error('Error deleting Drive file:', data.driveFileId, err.message)
+        )
+      );
+    }
+
+    // Fallback: hapus dari local jika masih ada storagePath lama
     if (data.storagePath) {
       try {
         const fullPath = path.join(__dirname, '..', data.storagePath);
         if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
       } catch (err) {
-        console.error('Error deleting file:', data.storagePath, err.message);
+        console.error('Error deleting local file:', data.storagePath, err.message);
       }
     }
   });
+
   if (!snapshot.empty) {
     await batch.commit();
   }
+  await Promise.allSettled(deletePromises);
 }
 
 async function markAccountsSold(accountIds) {
@@ -166,13 +181,22 @@ async function markAccountsSold(accountIds) {
   await batch.commit();
 }
 
-async function addAccount(type, garansi, storagePath, fileName) {
+/**
+ * Tambah akun baru ke Firestore.
+ * @param {string} type - 'muda' atau 'tua'
+ * @param {boolean} garansi
+ * @param {string} driveFileId - Google Drive File ID
+ * @param {string} fileName - nama file asli
+ * @param {string} [storagePath] - (legacy) path lokal lama, opsional
+ */
+async function addAccount(type, garansi, driveFileId, fileName, storagePath = null) {
   return await db.collection('accounts').add({
     type,
     garansi,
     status: 'available',
-    storagePath,
+    driveFileId,
     fileName,
+    ...(storagePath ? { storagePath } : {}),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 }
@@ -270,7 +294,7 @@ function getPriceKey(type, garansi) {
 }
 
 module.exports = {
-  db, bucket, admin,
+  db, admin,
   getUser, createUser, getUserOrCreate, updateUserSaldo,
   getAvailableAccounts, getStockCount, getStockItems, getAllStock, markAccountsSold, addAccount, deleteStockCategory,
   createOrder, getOrder, getOrderByPakasirId, updateOrderStatus, getAllOrders, getOrderStats,
