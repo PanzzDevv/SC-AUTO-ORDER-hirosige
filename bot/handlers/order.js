@@ -1,6 +1,7 @@
 const {
   getPrices, getPriceKey, getStockCount,
   createOrder, getAvailableAccounts, markAccountsSold, updateOrderStatus, getOrder,
+  getUser, updateUserSaldo,
 } = require('../../server/firebase');
 const { createZipFromAccounts, cleanupZip } = require('../../server/zipHelper');
 
@@ -139,6 +140,10 @@ async function handleQtySelected(bot, chatId, messageId, qty) {
   const typeName    = type === 'muda' ? 'Akun Muda' : 'Akun Tua';
   const garansiName = garansi ? '✅ Garansi' : '❌ No Garansi';
 
+  // Ambil saldo user untuk konfirmasi pembayaran
+  const user = await getUser(chatId);
+  const saldo = user ? (user.saldo || 0) : 0;
+
   const text = `🧾 <b>Konfirmasi Order</b>
 
 <blockquote>📦 Produk: <b>${typeName}</b>
@@ -148,14 +153,18 @@ async function handleQtySelected(bot, chatId, messageId, qty) {
 
 💵 <b>Total: Rp ${formatRupiah(total)}</b></blockquote>
 
+👤 Saldo Kamu: <b>Rp ${formatRupiah(saldo)}</b>
+
 Lanjutkan ke pembayaran?`;
 
-  const keyboard = {
-    inline_keyboard: [
-      [{ text: '💳 Bayar Sekarang', callback_data: 'confirm_order' }],
-      [{ text: '❌ Batalkan',       callback_data: 'menu_beli'     }],
-    ],
-  };
+  const inline_keyboard = [];
+  if (saldo >= total) {
+    inline_keyboard.push([{ text: '💰 Bayar Pakai Saldo', callback_data: 'pay_with_saldo' }]);
+  }
+  inline_keyboard.push([{ text: '💳 Bayar via QRIS (Pakasir)', callback_data: 'confirm_order' }]);
+  inline_keyboard.push([{ text: '❌ Batalkan', callback_data: 'menu_beli' }]);
+
+  const keyboard = { inline_keyboard };
 
   await editMain(bot, chatId, text, keyboard, messageId);
 }
@@ -315,10 +324,12 @@ async function deliverOrder(bot, orderId) {
     let currentSize = 0;
 
     for (let acc of accounts) {
-      const sourcePath = path.join(__dirname, '../../storage/', acc.storagePath);
       let size = 1024 * 1024; // fallback 1MB
-      if (fs.existsSync(sourcePath)) {
-        size = fs.statSync(sourcePath).size;
+      if (acc.storagePath) {
+        const sourcePath = path.join(__dirname, '../../storage/', acc.storagePath);
+        if (fs.existsSync(sourcePath)) {
+          size = fs.statSync(sourcePath).size;
+        }
       }
       
       if (currentSize + size > MAX_ZIP_SIZE && currentChunk.length > 0) {
@@ -358,6 +369,17 @@ async function deliverOrder(bot, orderId) {
     await markAccountsSold(accounts.map(a => a.id));
     await updateOrderStatus(orderId, 'done', { deliveredAt: new Date().toISOString() });
 
+    // Update main banner message to final success state!
+    try {
+      const { buildMainKeyboard } = require('./start');
+      const user = await getUser(chatId);
+      const sisaSaldo = user ? (user.saldo || 0) : 0;
+      const finalCaption = `✅ <b>Order Selesai!</b>\n\n<blockquote>📦 ${order.qty}x Akun TikTok ${order.type === 'muda' ? 'Muda' : 'Tua'} ${order.garansi ? 'Garansi' : 'No Garansi'}\n💰 Total: Rp ${formatRupiah(order.totalPrice)}\n👤 Sisa Saldo: Rp ${formatRupiah(sisaSaldo)}</blockquote>\n🎉 <i>File akun kamu telah dikirim di bawah ini. Silakan unduh.</i>`;
+      await editMain(bot, chatId, finalCaption, buildMainKeyboard(chatId));
+    } catch (editMainErr) {
+      console.error('Failed to update main banner to final success state:', editMainErr.message);
+    }
+
   } catch (err) {
     console.error('Order Delivery Error:', err);
     bot.deleteMessage(chatId, waitMsg.message_id).catch(() => {});
@@ -369,8 +391,86 @@ async function deliverOrder(bot, orderId) {
   }
 }
 
+// ─── PAY WITH BALANCE (SALDO) ────────────────────────────────────────────────
+async function handlePayWithSaldo(bot, chatId, messageId, from) {
+  const session = getSession(chatId);
+  const { type, garansi, qty, totalPrice } = session;
+
+  if (!type || !qty || !totalPrice) {
+    await editMain(bot, chatId,
+      '❌ Sesi order habis. Silakan mulai ulang.', {}, messageId);
+    return;
+  }
+
+  await editMain(bot, chatId, '⏳ <i>Memproses pembayaran saldo...</i>', {}, messageId);
+
+  try {
+    // Check balance again
+    const user = await getUser(chatId);
+    const saldo = user ? (user.saldo || 0) : 0;
+    if (saldo < totalPrice) {
+      await editMain(bot, chatId,
+        `❌ <b>Saldo tidak cukup!</b>\n\n<blockquote>Harga: Rp ${formatRupiah(totalPrice)}\nSaldo kamu: Rp ${formatRupiah(saldo)}</blockquote>`,
+        { inline_keyboard: [[{ text: '🔙 Menu Utama', callback_data: 'back_menu' }]] },
+        messageId
+      );
+      return;
+    }
+
+    // Check stock again
+    const stock = await getStockCount(type, garansi);
+    if (qty > stock) {
+      await editMain(bot, chatId,
+        `❌ <b>Stok tidak cukup!</b>\n\n<blockquote>Tersedia hanya <b>${stock} akun</b>.</blockquote>`,
+        { inline_keyboard: [[{ text: '🔙 Menu Utama', callback_data: 'back_menu' }]] },
+        messageId
+      );
+      return;
+    }
+
+    // Deduct balance
+    await updateUserSaldo(chatId, -totalPrice);
+
+    // Create paid order
+    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const orderId = `BAL-${shortId}`;
+    
+    // Simpan order di Firestore dengan status 'paid'
+    const order = await createOrder(
+      chatId, from.username, type, garansi, qty, totalPrice, 'Paid with Balance', orderId
+    );
+
+    // Update order status to paid
+    await updateOrderStatus(order.id, 'paid');
+
+    // Hapus sesi agar tidak double click
+    clearSession(chatId);
+
+    // Kirim pesan sukses pemotongan saldo ke menu utama
+    const { buildCaption, buildMainKeyboard } = require('./start');
+    await editMain(
+      bot,
+      chatId,
+      `✅ <b>Pembayaran Berhasil!</b>\n\n<blockquote>💰 Saldo dipotong: <b>Rp ${formatRupiah(totalPrice)}</b>\n👤 Sisa Saldo: <b>Rp ${formatRupiah(saldo - totalPrice)}</b></blockquote>\n⏳ <i>Mengirim file akun kamu, mohon tunggu sebentar...</i>`,
+      buildMainKeyboard(chatId),
+      session.mainMessageId || messageId
+    );
+
+    // Jalankan pengiriman order
+    deliverOrder(bot, order.id).catch(console.error);
+
+  } catch (err) {
+    console.error('Pay with saldo error:', err.message);
+    const adminUsername = process.env.ADMIN_USERNAME || 'panzzstore_admin';
+    await editMain(bot, chatId,
+      `❌ <b>Gagal memproses pembayaran.</b>\nHubungi admin jika saldo kamu terpotong (@${adminUsername}).`, {
+        inline_keyboard: [[{ text: '🔙 Menu Utama', callback_data: 'back_menu' }]],
+      }, messageId);
+  }
+}
+
 module.exports = {
   handleBeli, handleSelectType, handleSelectGaransi,
   handleQtySelected, handleConfirmOrder, handleTextMessage,
-  deliverOrder,
+  deliverOrder, handlePayWithSaldo,
 };

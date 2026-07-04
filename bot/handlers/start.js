@@ -138,8 +138,35 @@ async function handleStart(bot, msg) {
 }
 
 async function handleBackToMenu(bot, chatId, messageId, firstName) {
+  const session = getSession(chatId);
   const caption  = buildCaption(firstName || 'Kawan');
   const keyboard = buildMainKeyboard(chatId);
+
+  // Jika main menu sebelumnya diturunkan ke teks (isPhoto === false) atau messageId hilang,
+  // hapus pesan lama dan kirim ulang menu utama dengan foto banner agar branding tetap konsisten
+  if (session.mainIsPhoto === false || !messageId) {
+    if (messageId) bot.deleteMessage(chatId, messageId).catch(() => {});
+    
+    try {
+      const photoSource = cachedBannerFileId ? cachedBannerFileId : BANNER_PATH;
+      const photoMsg = await bot.sendPhoto(chatId, photoSource, {
+        caption,
+        parse_mode: 'HTML',
+        reply_markup: keyboard,
+      });
+
+      if (!cachedBannerFileId && photoMsg.photo && photoMsg.photo.length > 0) {
+        cachedBannerFileId = photoMsg.photo[photoMsg.photo.length - 1].file_id;
+      }
+      
+      session.mainMessageId = photoMsg.message_id;
+      session.mainIsPhoto   = true;
+      return;
+    } catch (e) {
+      console.error('Failed to restore main menu photo banner:', e.message);
+    }
+  }
+
   await editMain(bot, chatId, caption, keyboard, messageId);
 }
 

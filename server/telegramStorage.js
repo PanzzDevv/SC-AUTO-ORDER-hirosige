@@ -25,7 +25,7 @@ async function uploadFileToTelegram(filePath, fileName) {
   }
 
   // Upload ke channel
-  const msg = await getStorageBot().sendDocument(channelId, filePath, {
+  const msg = await getStorageBot().sendDocument(channelId, fs.createReadStream(filePath), {
     caption: `📦 File Account: ${fileName}\n📅 Date: ${new Date().toISOString()}`
   }, {
     filename: fileName,
@@ -49,6 +49,14 @@ async function uploadFileToTelegram(filePath, fileName) {
  * @returns {Promise<void>}
  */
 async function downloadFileFromTelegram(fileId, destPath) {
+  // Cek apakah file ada di cache lokal
+  const localCachePath = path.join(__dirname, '../storage/accounts/', fileId);
+  if (fs.existsSync(localCachePath)) {
+    console.log(`⚡ Cache hit: ${fileId} found locally!`);
+    fs.copyFileSync(localCachePath, destPath);
+    return;
+  }
+
   // Dapatkan URL file dari API Telegram
   const fileLink = await getStorageBot().getFileLink(fileId);
   
@@ -63,7 +71,17 @@ async function downloadFileFromTelegram(fileId, destPath) {
     const dest = fs.createWriteStream(destPath);
     response.data.pipe(dest);
     
-    dest.on('finish', () => resolve());
+    dest.on('finish', () => {
+      // Simpan salinan ke cache lokal agar ke depannya instan
+      try {
+        const localAccountsDir = path.dirname(localCachePath);
+        if (!fs.existsSync(localAccountsDir)) {
+          fs.mkdirSync(localAccountsDir, { recursive: true });
+        }
+        fs.copyFileSync(destPath, localCachePath);
+      } catch (_) {}
+      resolve();
+    });
     dest.on('error', (err) => reject(err));
     response.data.on('error', (err) => reject(err));
   });

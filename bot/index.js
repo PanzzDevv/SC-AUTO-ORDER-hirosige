@@ -9,6 +9,7 @@ const { handleStart, handleBackToMenu } = require('./handlers/start');
 const {
   handleBeli, handleSelectType, handleSelectGaransi,
   handleQtySelected, handleConfirmOrder, handleTextMessage,
+  handlePayWithSaldo,
 } = require('./handlers/order');
 const { handleSaldo }   = require('./handlers/saldo');
 const { handleBantuan } = require('./handlers/bantuan');
@@ -127,6 +128,10 @@ bot.on('callback_query', async (query) => {
 
       case data === 'confirm_order':
         await handleConfirmOrder(bot, chatId, messageId, from);
+        break;
+
+      case data === 'pay_with_saldo':
+        await handlePayWithSaldo(bot, chatId, messageId, from);
         break;
 
       case data === 'menu_saldo':

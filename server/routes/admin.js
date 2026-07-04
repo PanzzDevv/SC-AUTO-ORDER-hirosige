@@ -7,13 +7,20 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const {
   getAllOrders, getOrderStats, getAllStock, deleteStockCategory,
-  updateOrderStatus, addAccount, getPrices, updatePrices, db
+  updateOrderStatus, addAccount, getPrices, updatePrices, db,
+  getAllUsers, setUserSaldo
 } = require('../firebase');
 const { uploadFileToTelegram } = require('../telegramStorage');
 
+// Ensure temp upload directory exists
+const tempUploadDir = path.join(__dirname, '../../storage/temp-uploads/');
+if (!fs.existsSync(tempUploadDir)) {
+  fs.mkdirSync(tempUploadDir, { recursive: true });
+}
+
 // Multer for file uploads (temp storage)
 const upload = multer({
-  dest: path.join(__dirname, '../../storage/temp-uploads/'),
+  dest: tempUploadDir,
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
 });
 
@@ -150,35 +157,56 @@ router.post('/stock/upload', adminAuth, upload.array('files', 500), async (req, 
     const results = [];
     const errors = [];
 
-    for (const file of req.files) {
-      let telegramFileId = null;
+    const concurrency = 5; // Batasi hingga 5 upload paralel agar tidak terkena limit API Telegram
+    const filesQueue = [...req.files];
 
-      try {
-        // Upload file temp ke Telegram Channel
-        telegramFileId = await uploadFileToTelegram(
-          file.path,
-          file.originalname
-        );
+    const uploadWorker = async () => {
+      while (filesQueue.length > 0) {
+        const file = filesQueue.shift();
+        if (!file) continue;
 
-        // Simpan ke Firestore dengan telegramFileId
-        await addAccount(type, garansiBool, telegramFileId, file.originalname);
+        try {
+          // Upload file temp ke Telegram Channel
+          const telegramFileId = await uploadFileToTelegram(
+            file.path,
+            file.originalname
+          );
 
-        results.push({ fileName: file.originalname, telegramFileId });
-      } catch (uploadErr) {
-        console.error(`Failed to upload ${file.originalname}:`, uploadErr.message);
-        errors.push({ fileName: file.originalname, error: uploadErr.message });
-      } finally {
-        // Hapus temp file lokal setelah upload (berhasil atau tidak)
-        try { fs.unlinkSync(file.path); } catch (_) {}
+          // Simpan salinan lokal ke cache folder untuk pengiriman instan tanpa download
+          const localAccountsDir = path.join(__dirname, '../../storage/accounts/');
+          if (!fs.existsSync(localAccountsDir)) {
+            fs.mkdirSync(localAccountsDir, { recursive: true });
+          }
+          fs.copyFileSync(file.path, path.join(localAccountsDir, telegramFileId));
+
+          // Simpan ke Firestore dengan telegramFileId
+          await addAccount(type, garansiBool, telegramFileId, file.originalname);
+
+          results.push({ fileName: file.originalname, telegramFileId });
+        } catch (uploadErr) {
+          console.error(`Failed to upload ${file.originalname}:`, uploadErr.message);
+          errors.push({ fileName: file.originalname, error: uploadErr.message });
+        } finally {
+          // Hapus temp file lokal setelah upload (berhasil atau tidak)
+          try { fs.unlinkSync(file.path); } catch (_) {}
+        }
       }
-    }
+    };
 
+    // Jalankan worker secara paralel
+    const workers = Array(Math.min(concurrency, filesQueue.length))
+      .fill(null)
+      .map(() => uploadWorker());
+
+    await Promise.all(workers);
+
+    const hasErrors = errors.length > 0;
     res.json({
-      success: errors.length === 0,
+      success: !hasErrors,
       uploaded: results.length,
       failed: errors.length,
       results,
-      ...(errors.length > 0 ? { errors } : {}),
+      ...(hasErrors ? { errors, error: errors.map(e => `${e.fileName}: ${e.error}`).join(' | ') } : {}),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -220,6 +248,30 @@ router.get('/orders/stream', adminAuth, (req, res) => {
     });
 
   req.on('close', () => unsubscribe());
+});
+
+// ─── USER MANAGEMENT ──────────────────────────────────────────────────────────
+router.get('/users', adminAuth, async (req, res) => {
+  try {
+    const users = await getAllUsers();
+    res.json({ users });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/users/:id/balance', adminAuth, async (req, res) => {
+  try {
+    const { balance } = req.body;
+    const telegramId = req.params.id;
+    if (balance === undefined || isNaN(balance)) {
+      return res.status(400).json({ error: 'Valid balance is required' });
+    }
+    await setUserSaldo(telegramId, balance);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

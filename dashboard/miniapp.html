@@ -47,6 +47,10 @@
         <span class="nav-icon">⬆️</span>
         <span class="nav-label">Upload</span>
       </button>
+      <button class="nav-btn" id="nav-users" onclick="switchTab('users')">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">User</span>
+      </button>
       <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')">
         <span class="nav-icon">⚙️</span>
         <span class="nav-label">Harga</span>
@@ -247,6 +251,39 @@
         </div>
       </div>
 
+      <!-- ── USERS TAB ─────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-users">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Kelola User</h1>
+            <p class="page-sub">Atur saldo dan pantau user</p>
+          </div>
+          <button class="refresh-btn" onclick="loadUsers()">🔄</button>
+        </div>
+
+        <!-- Search Bar -->
+        <div style="margin-bottom:1rem; position:relative;">
+          <input type="text" id="userSearchInput" placeholder="🔍 Cari Username atau Telegram ID..." oninput="searchUsers()" style="
+            width:100%;
+            background:rgba(255,255,255,0.05);
+            border:1px solid var(--border);
+            padding:0.75rem 1rem;
+            border-radius:12px;
+            color:#fff;
+            font-size:0.9rem;
+            outline:none;
+            transition:border-color 0.2s;
+            box-sizing:border-box;
+          " />
+        </div>
+
+        <div class="user-list" id="usersList">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -347,6 +384,32 @@
         </div>
         <div id="stockFileList" style="display:flex; flex-direction:column; gap:0.5rem; max-height:40vh; overflow-y:auto; padding-right:0.5rem;">
           <!-- List of files -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT SALDO MODAL -->
+  <div id="saldoModal" class="modal-overlay" style="display:none;" onclick="closeSaldoModal(event)">
+    <div class="modal-card" style="max-width:340px; width:100%; border: 1px solid rgba(192,132,252,0.35); background: linear-gradient(145deg, #1a1228, #120e1e);">
+      <div class="modal-header">
+        <h3>✏️ Edit Saldo User</h3>
+        <button class="modal-close" onclick="closeSaldoModal()">✕</button>
+      </div>
+      <div style="padding: 1.5rem; display:flex; flex-direction:column; gap:1rem;">
+        <p style="font-size:0.85rem; color:var(--text-muted); margin:0;" id="modalUserLabel">@username (ID: 123456)</p>
+        
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.75rem; color:#bbb; display:block; margin-bottom:0.5rem; text-align:left;">Saldo Baru (Rupiah)</label>
+          <div class="price-input-row" style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+            <span class="rp" style="color:var(--primary-light); font-weight:700; margin-right:0.25rem;">Rp</span>
+            <input type="number" id="modalSaldoInput" placeholder="0" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:1rem; outline:none; flex:1;" />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button class="btn-primary full" style="flex:1;" onclick="saveUserSaldo()">💾 Simpan</button>
+          <button class="btn-secondary full" style="flex:1;" onclick="closeSaldoModal()">✕ Batal</button>
         </div>
       </div>
     </div>

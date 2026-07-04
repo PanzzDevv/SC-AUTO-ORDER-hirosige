@@ -90,6 +90,7 @@ function switchTab(tab) {
   if (tab === 'orders')   loadOrders();
   if (tab === 'stock')    loadStock();
   if (tab === 'settings') loadPrices();
+  if (tab === 'users')    loadUsers();
 }
 
 // ─── FORMAT HELPERS ───────────────────────────────────────────────────────────
@@ -685,6 +686,125 @@ async function savePrices() {
       showToast('❌ Gagal menyimpan.');
     }
   } catch {
+    showToast('❌ Terjadi kesalahan.');
+  }
+}
+
+// ─── USER MANAGEMENT ──────────────────────────────────────────────────────────
+let allUsers = [];
+async function loadUsers() {
+  const listEl = document.getElementById('usersList');
+  listEl.innerHTML = `
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row"></div>
+  `;
+
+  try {
+    const res = await apiFetch('/api/admin/users');
+    const data = await res.json();
+    allUsers = data.users || [];
+    renderUsers(allUsers);
+  } catch (err) {
+    showToast('❌ Gagal memuat data user');
+    listEl.innerHTML = `<div class="empty-state">Gagal memuat data user.</div>`;
+  }
+}
+
+function renderUsers(usersList) {
+  const listEl = document.getElementById('usersList');
+  if (usersList.length === 0) {
+    listEl.innerHTML = `<div class="empty-state">Tidak ada user ditemukan.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = usersList.map(u => {
+    const usernameDisplay = u.username ? `@${u.username}` : `User_${u.telegramId.slice(-4)}`;
+    const nameDisplay = u.firstName || 'Tanpa Nama';
+    const totalOrders = u.totalOrders || 0;
+    
+    return `
+      <div class="stock-cat-row" style="padding: 1rem; margin-bottom: 0.75rem; display:flex; flex-direction:column; gap:0.5rem; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="text-align:left;">
+            <div style="font-weight:700; color:#fff; font-size:0.95rem;">${nameDisplay}</div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">${usernameDisplay} • ID: <code>${u.telegramId}</code></div>
+          </div>
+          <button class="btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 8px; flex-shrink:0;" onclick="openSaldoModal('${u.telegramId}', '${u.username || ''}', ${u.saldo || 0})">✏️ Edit Saldo</button>
+        </div>
+        <div style="display:flex; gap:1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top:0.5rem; font-size:0.8rem; color:#bbb;">
+          <div>💰 Saldo: <b style="color:var(--success);">${rupiah(u.saldo || 0)}</b></div>
+          <div>🛒 Total Order: <b>${totalOrders}x</b></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function searchUsers() {
+  const query = document.getElementById('userSearchInput').value.toLowerCase().trim();
+  if (!query) {
+    renderUsers(allUsers);
+    return;
+  }
+
+  const filtered = allUsers.filter(u => {
+    const username = (u.username || '').toLowerCase();
+    const telegramId = (u.telegramId || '').toLowerCase();
+    const firstName = (u.firstName || '').toLowerCase();
+    return username.includes(query) || telegramId.includes(query) || firstName.includes(query);
+  });
+
+  renderUsers(filtered);
+}
+
+let activeEditUserId = null;
+function openSaldoModal(userId, username, saldo) {
+  activeEditUserId = userId;
+  document.getElementById('modalUserLabel').innerHTML = `User: <b>${username ? '@' + username : 'ID ' + userId}</b>`;
+  document.getElementById('modalSaldoInput').value = saldo;
+  
+  const modal = document.getElementById('saldoModal');
+  modal.style.display = 'flex';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+}
+
+function closeSaldoModal(e) {
+  if (e && e.target !== e.currentTarget && e.target.className !== 'modal-close' && e.target.className !== 'btn-secondary full') {
+    return;
+  }
+  document.getElementById('saldoModal').style.display = 'none';
+  activeEditUserId = null;
+}
+
+async function saveUserSaldo() {
+  if (!activeEditUserId) return;
+  const newSaldo = parseInt(document.getElementById('modalSaldoInput').value);
+  if (isNaN(newSaldo) || newSaldo < 0) {
+    showToast('❌ Saldo tidak valid');
+    return;
+  }
+
+  setOverlay('Menyimpan...', 'Memperbarui saldo user...', 50);
+
+  try {
+    const res = await apiFetch(`/api/admin/users/${activeEditUserId}/balance`, {
+      method: 'POST',
+      body: JSON.stringify({ balance: newSaldo })
+    });
+    const data = await res.json();
+    hideOverlay();
+
+    if (data.success) {
+      showToast('✅ Saldo berhasil diperbarui!');
+      closeSaldoModal();
+      loadUsers();
+    } else {
+      showToast('❌ Gagal memperbarui saldo.');
+    }
+  } catch {
+    hideOverlay();
     showToast('❌ Terjadi kesalahan.');
   }
 }

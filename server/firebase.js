@@ -37,7 +37,20 @@ const db = admin.firestore();
 // ─── USERS ────────────────────────────────────────────────────────────────────
 async function getUser(telegramId) {
   const doc = await db.collection('users').doc(String(telegramId)).get();
-  return doc.exists ? doc.data() : null;
+  if (!doc.exists) return null;
+  const data = doc.data();
+  
+  // Hitung jumlah order sukses (done) secara dinamis
+  const ordersSnapshot = await db.collection('orders')
+    .where('userId', '==', String(telegramId))
+    .where('status', '==', 'done')
+    .get();
+
+  return {
+    ...data,
+    saldo: data.saldo !== undefined ? data.saldo : (data.balance !== undefined ? data.balance : 0),
+    totalOrders: ordersSnapshot.size
+  };
 }
 
 async function createUser(telegramId, username, firstName) {
@@ -62,6 +75,7 @@ async function getUserOrCreate(telegramId, username, firstName) {
 async function updateUserSaldo(telegramId, amount) {
   await db.collection('users').doc(String(telegramId)).update({
     saldo: admin.firestore.FieldValue.increment(amount),
+    balance: admin.firestore.FieldValue.increment(amount),
   });
 }
 
@@ -284,9 +298,46 @@ function getPriceKey(type, garansi) {
   return `${type}_${garansi ? 'garansi' : 'no_garansi'}`;
 }
 
+async function getAllUsers() {
+  const usersSnapshot = await db.collection('users').get();
+  
+  // Ambil semua order sukses (done) untuk menghitung totalOrders per user secara akurat
+  const ordersSnapshot = await db.collection('orders')
+    .where('status', '==', 'done')
+    .get();
+    
+  const orderCounts = {};
+  ordersSnapshot.docs.forEach(d => {
+    const o = d.data();
+    const uId = String(o.userId);
+    orderCounts[uId] = (orderCounts[uId] || 0) + 1;
+  });
+
+  return usersSnapshot.docs.map(d => {
+    const data = d.data();
+    const uId = String(data.telegramId || d.id);
+    return {
+      id: d.id,
+      telegramId: uId,
+      ...data,
+      saldo: data.saldo !== undefined ? data.saldo : (data.balance !== undefined ? data.balance : 0),
+      totalOrders: orderCounts[uId] || 0,
+      createdAt: data.createdAt ? (typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().toISOString() : data.createdAt) : null
+    };
+  });
+}
+
+async function setUserSaldo(telegramId, newSaldo) {
+  // Update both 'saldo' and 'balance' for backward compatibility with older database schemas
+  await db.collection('users').doc(String(telegramId)).update({
+    saldo: Number(newSaldo),
+    balance: Number(newSaldo)
+  });
+}
+
 module.exports = {
   db, admin,
-  getUser, createUser, getUserOrCreate, updateUserSaldo,
+  getUser, createUser, getUserOrCreate, updateUserSaldo, getAllUsers, setUserSaldo,
   getAvailableAccounts, getStockCount, getStockItems, getAllStock, markAccountsSold, addAccount, deleteStockCategory,
   createOrder, getOrder, getOrderByPakasirId, updateOrderStatus, getAllOrders, getOrderStats,
   getPrices, updatePrices, getPriceKey,

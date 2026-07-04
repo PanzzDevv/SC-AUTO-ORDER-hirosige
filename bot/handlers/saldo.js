@@ -108,9 +108,10 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
     const pakasirOrderId = `TOP-${shortId}`;
     const payment_url = `https://app.pakasir.com/pay/${process.env.PAKASIR_SLUG}/${amount}?order_id=${pakasirOrderId}`;
 
-    await createOrder(
+    const orderObj = await createOrder(
       chatId, from.username, 'topup', false, 1, amount, payment_url, pakasirOrderId
     );
+    const orderId = orderObj.id;
 
     const text = `💳 <b>Scan QRIS untuk Top Up Saldo</b>
 
