@@ -9,7 +9,7 @@ const {
   getAllOrders, getOrderStats, getAllStock, deleteStockCategory,
   updateOrderStatus, addAccount, getPrices, updatePrices, db
 } = require('../firebase');
-const { uploadFileToDrive } = require('../googleDrive');
+const { uploadFileToTelegram } = require('../telegramStorage');
 
 // Multer for file uploads (temp storage)
 const upload = multer({
@@ -139,7 +139,7 @@ router.delete('/stock', adminAuth, async (req, res) => {
   }
 });
 
-// Upload account files ke Google Drive
+// Upload account files ke Telegram Storage
 router.post('/stock/upload', adminAuth, upload.array('files', 500), async (req, res) => {
   try {
     const { type, garansi } = req.body;
@@ -151,21 +151,19 @@ router.post('/stock/upload', adminAuth, upload.array('files', 500), async (req, 
     const errors = [];
 
     for (const file of req.files) {
-      const uniqueFileName = `${uuidv4()}_${file.originalname}`;
-      let driveFileId = null;
+      let telegramFileId = null;
 
       try {
-        // Upload file temp ke Google Drive
-        driveFileId = await uploadFileToDrive(
+        // Upload file temp ke Telegram Channel
+        telegramFileId = await uploadFileToTelegram(
           file.path,
-          uniqueFileName,
-          file.mimetype || 'application/octet-stream'
+          file.originalname
         );
 
-        // Simpan ke Firestore dengan driveFileId
-        await addAccount(type, garansiBool, driveFileId, file.originalname);
+        // Simpan ke Firestore dengan telegramFileId
+        await addAccount(type, garansiBool, telegramFileId, file.originalname);
 
-        results.push({ fileName: file.originalname, driveFileId });
+        results.push({ fileName: file.originalname, telegramFileId });
       } catch (uploadErr) {
         console.error(`Failed to upload ${file.originalname}:`, uploadErr.message);
         errors.push({ fileName: file.originalname, error: uploadErr.message });

@@ -5,8 +5,8 @@ const os = require('os');
 const AdmZip = require('adm-zip');
 
 /**
- * Download files from Google Drive (or fallback local) and ZIP them.
- * @param {Array} accounts - array of account objects with driveFileId (new) or storagePath (legacy)
+ * Download files from Telegram Storage (or fallback local) and ZIP them.
+ * @param {Array} accounts - array of account objects with telegramFileId (new) or storagePath (legacy)
  * @param {string} orderId - order ID for naming the ZIP
  * @returns {string} local path to the generated ZIP
  */
@@ -17,16 +17,16 @@ async function createZipFromAccounts(accounts, orderId) {
   // Create temp directory
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-  // Lazy-load Google Drive helper (avoid crash if env not configured for legacy-only orders)
-  let downloadFileFromDrive;
+  // Lazy-load Telegram Storage helper
+  let downloadFileFromTelegram;
   try {
-    downloadFileFromDrive = require('./googleDrive').downloadFileFromDrive;
+    downloadFileFromTelegram = require('./telegramStorage').downloadFileFromTelegram;
   } catch (_) {
-    downloadFileFromDrive = null;
+    downloadFileFromTelegram = null;
   }
 
   const downloadPromises = accounts.map(async (acc) => {
-    const fileName = acc.fileName || path.basename(acc.driveFileId || acc.storagePath || 'account');
+    const fileName = acc.fileName || path.basename(acc.telegramFileId || acc.storagePath || 'account');
     const folderName = fileName.endsWith('.zip') ? fileName.slice(0, -4) : fileName;
 
     // Create a sub-folder for this account
@@ -36,10 +36,10 @@ async function createZipFromAccounts(accounts, orderId) {
     const destPath = path.join(accountDir, fileName);
 
     try {
-      if (acc.driveFileId && downloadFileFromDrive) {
-        // ─── BARU: Download dari Google Drive ────────────────────────────────
-        console.log(`📥 Drive download: ${fileName} (ID: ${acc.driveFileId})`);
-        await downloadFileFromDrive(acc.driveFileId, destPath);
+      if (acc.telegramFileId && downloadFileFromTelegram) {
+        // ─── BARU: Download dari Telegram Storage ────────────────────────────
+        console.log(`📥 Telegram download: ${fileName} (ID: ${acc.telegramFileId})`);
+        await downloadFileFromTelegram(acc.telegramFileId, destPath);
       } else if (acc.storagePath) {
         // ─── LEGACY: Baca dari local storage ─────────────────────────────────
         const sourcePath = path.join(__dirname, '../storage/', acc.storagePath);
@@ -49,7 +49,7 @@ async function createZipFromAccounts(accounts, orderId) {
         console.log(`📂 Local fallback: ${acc.storagePath}`);
         fs.copyFileSync(sourcePath, destPath);
       } else {
-        throw new Error(`Akun ${acc.id}: tidak ada driveFileId maupun storagePath`);
+        throw new Error(`Akun ${acc.id}: tidak ada telegramFileId maupun storagePath`);
       }
 
       // Extract zip contents jika file-nya .zip

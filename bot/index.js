@@ -1,4 +1,9 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+process.env.NTBA_FIX_350 = '1';
 const TelegramBot = require('node-telegram-bot-api');
 const { handleStart, handleBackToMenu } = require('./handlers/start');
 const {
@@ -75,6 +80,15 @@ bot.on('callback_query', async (query) => {
   const messageId = message.message_id;
 
   try { await bot.answerCallbackQuery(query.id); } catch {}
+
+  // Sync session with the current message state to prevent edit errors after bot restarts
+  const session = getSession(chatId);
+  if (session.mainIsPhoto === undefined && message) {
+    session.mainIsPhoto = !!message.photo;
+  }
+  if (!session.mainMessageId) {
+    session.mainMessageId = messageId;
+  }
 
   try {
     switch (true) {

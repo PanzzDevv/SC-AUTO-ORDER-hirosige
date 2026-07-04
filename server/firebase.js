@@ -125,7 +125,6 @@ async function getAllStock() {
 async function deleteStockCategory(type, garansi) {
   const fs = require('fs');
   const path = require('path');
-  const { deleteFileFromDrive } = require('./googleDrive');
 
   const snapshot = await db.collection('accounts')
     .where('type', '==', type)
@@ -134,7 +133,6 @@ async function deleteStockCategory(type, garansi) {
     .get();
 
   const batch = db.batch();
-  const deletePromises = [];
 
   snapshot.docs.forEach(doc => {
     batch.update(doc.ref, {
@@ -144,14 +142,8 @@ async function deleteStockCategory(type, garansi) {
 
     const data = doc.data();
 
-    // Hapus dari Google Drive jika ada driveFileId
-    if (data.driveFileId) {
-      deletePromises.push(
-        deleteFileFromDrive(data.driveFileId).catch(err =>
-          console.error('Error deleting Drive file:', data.driveFileId, err.message)
-        )
-      );
-    }
+    // Hapus dari Telegram Channel jika ada telegramFileId (opsional, bisa dibiarkan saja)
+    // if (data.telegramFileId) { ... }
 
     // Fallback: hapus dari local jika masih ada storagePath lama
     if (data.storagePath) {
@@ -167,7 +159,6 @@ async function deleteStockCategory(type, garansi) {
   if (!snapshot.empty) {
     await batch.commit();
   }
-  await Promise.allSettled(deletePromises);
 }
 
 async function markAccountsSold(accountIds) {
@@ -185,16 +176,16 @@ async function markAccountsSold(accountIds) {
  * Tambah akun baru ke Firestore.
  * @param {string} type - 'muda' atau 'tua'
  * @param {boolean} garansi
- * @param {string} driveFileId - Google Drive File ID
+ * @param {string} telegramFileId - Telegram File ID
  * @param {string} fileName - nama file asli
  * @param {string} [storagePath] - (legacy) path lokal lama, opsional
  */
-async function addAccount(type, garansi, driveFileId, fileName, storagePath = null) {
+async function addAccount(type, garansi, telegramFileId, fileName, storagePath = null) {
   return await db.collection('accounts').add({
     type,
     garansi,
     status: 'available',
-    driveFileId,
+    telegramFileId,
     fileName,
     ...(storagePath ? { storagePath } : {}),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),

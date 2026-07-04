@@ -251,17 +251,70 @@
   </div>
 
   <!-- LOADING OVERLAY -->
-  <div id="loadingOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:9999; align-items:center; justify-content:center; padding:2rem;">
-    <div style="background:var(--card-bg); text-align:center; padding:2.5rem 2rem; border-radius:24px; max-width:320px; width:100%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 20px 40px rgba(0,0,0,0.5); animation: fadeScale 0.3s cubic-bezier(0.16,1,0.3,1);">
-      <div class="spinner" style="margin: 0 auto 1.5rem; width: 48px; height: 48px; border: 4px solid var(--border-color); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      <h3 id="loadingTitle" style="margin-bottom:0.5rem; font-size:1.15rem; color:var(--text-main); font-weight:800;">Memproses...</h3>
-      <p id="loadingDesc" style="font-size:0.9rem; color:var(--text-muted); margin-bottom:1.5rem; line-height:1.4;">Mohon tunggu sebentar</p>
-      <div class="prog-track" style="background:rgba(255,255,255,0.05); border-radius:99px; height:8px; overflow:hidden;">
-        <div class="prog-bar" id="loadingProgBar" style="background:var(--primary); width:0%; height:100%; transition:width 0.3s ease;"></div>
+  <div id="loadingOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center; padding:2rem;">
+    <div style="
+      background: linear-gradient(145deg, #1a1228, #120e1e);
+      text-align:center;
+      padding: 2.5rem 2rem;
+      border-radius: 24px;
+      max-width: 320px;
+      width: 100%;
+      border: 1px solid rgba(192,132,252,0.35);
+      box-shadow:
+        0 0 0 1px rgba(192,132,252,0.1),
+        0 0 40px rgba(192,132,252,0.2),
+        0 25px 60px rgba(0,0,0,0.7);
+      animation: fadeScale 0.3s cubic-bezier(0.16,1,0.3,1);
+      position: relative;
+      overflow: hidden;
+    ">
+      <!-- Glow accent top -->
+      <div style="position:absolute; top:-40px; left:50%; transform:translateX(-50%); width:140px; height:80px; background:radial-gradient(ellipse, rgba(192,132,252,0.25), transparent 70%); pointer-events:none;"></div>
+
+      <!-- Spinner -->
+      <div style="
+        margin: 0 auto 1.5rem;
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        border: 3px solid rgba(192,132,252,0.15);
+        border-top-color: #c084fc;
+        border-right-color: #e879f9;
+        animation: spin 0.9s linear infinite;
+        box-shadow: 0 0 16px rgba(192,132,252,0.35);
+      "></div>
+
+      <!-- Title -->
+      <h3 id="loadingTitle" style="
+        margin-bottom: 0.4rem;
+        font-size: 1.15rem;
+        color: #f8fafc;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      ">Memproses...</h3>
+
+      <!-- Desc -->
+      <p id="loadingDesc" style="
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-bottom: 1.75rem;
+        line-height: 1.5;
+      ">Mohon tunggu sebentar</p>
+
+      <!-- Progress track -->
+      <div style="background: rgba(255,255,255,0.06); border-radius: 99px; height: 7px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
+        <div id="loadingProgBar" style="
+          background: linear-gradient(90deg, #c084fc, #e879f9);
+          width: 0%;
+          height: 100%;
+          border-radius: 99px;
+          transition: width 0.35s ease;
+          box-shadow: 0 0 10px rgba(192,132,252,0.6);
+        "></div>
       </div>
+
       <style>
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fadeScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
       </style>
     </div>
   </div>
