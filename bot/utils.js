@@ -18,6 +18,27 @@ function formatRupiah(num) {
  */
 async function editMain(bot, chatId, text, keyboard, msgId = null) {
   const session = getSession(chatId);
+
+  // Jika dipaksa untuk mengirim pesan baru (misal via Reply Keyboard)
+  if (msgId === 'new') {
+    const m = await bot.sendMessage(chatId, text, {
+      parse_mode: 'HTML',
+      reply_markup: keyboard,
+    });
+    session.mainMessageId = m.message_id;
+    session.mainIsPhoto = false;
+
+    // Simpan ke Firestore untuk pemulihan nanti jika bot restart
+    try {
+      const { db } = require('../server/firebase');
+      await db.collection('users').doc(String(chatId)).update({
+        mainMessageId: m.message_id,
+        mainIsPhoto: false
+      }).catch(() => {});
+    } catch {}
+    return;
+  }
+
   let targetId = msgId || session.mainMessageId;
   let isPhoto  = session.mainIsPhoto;
 

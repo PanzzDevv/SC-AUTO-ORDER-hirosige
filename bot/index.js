@@ -36,7 +36,7 @@ bot.on('message', async (msg) => {
   // Reply keyboard: 💰 Saldo
   if (text === '💰 Saldo') {
     bot.deleteMessage(chatId, msg.message_id).catch(() => {});
-    try { await handleSaldo(bot, chatId, session.mainMessageId, msg.from); }
+    try { await handleSaldo(bot, chatId, 'new', msg.from); }
     catch (e) { console.error('Saldo error:', e.message); }
     return;
   }
@@ -44,7 +44,7 @@ bot.on('message', async (msg) => {
   // Reply keyboard: 🆘 Pusat Bantuan
   if (text === '🆘 Pusat Bantuan') {
     bot.deleteMessage(chatId, msg.message_id).catch(() => {});
-    try { await handleBantuan(bot, chatId, session.mainMessageId); }
+    try { await handleBantuan(bot, chatId, 'new'); }
     catch (e) { console.error('Bantuan error:', e.message); }
     return;
   }
