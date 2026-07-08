@@ -16,7 +16,7 @@ Jika butuh bantuan manual atau laporan transaksi, hubungi admin kami:
   const keyboard = {
     inline_keyboard: [
       [{ text: '📞 Hubungi Admin', url: `https://t.me/${adminUsername}` }],
-      [{ text: '🔙 Menu Utama',   callback_data: 'back_menu' }],
+      [{ text: '« Menu Utama',   callback_data: 'back_menu' }],
     ],
   };
 

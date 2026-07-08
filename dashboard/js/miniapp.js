@@ -868,5 +868,28 @@ function stopSyncStatusPolling() {
   }
 }
 
+// ─── DRAG & DROP HANDLERS ─────────────────────────────────────────────────────
+function handleDragOver(e) {
+  e.preventDefault();
+  const dz = document.getElementById('dropZone');
+  if (dz) dz.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  const dz = document.getElementById('dropZone');
+  if (dz) dz.classList.remove('dragover');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('dropZone');
+  if (dz) dz.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files && files.length) {
+    handleFiles(files);
+  }
+}
+
 // ─── START ────────────────────────────────────────────────────────────────────
 checkAuth();

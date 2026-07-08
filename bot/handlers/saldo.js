@@ -23,9 +23,9 @@ Saldo dapat digunakan untuk membeli stok akun secara instan tanpa perlu scan QRI
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '💳 Top Up Saldo', callback_data: 'saldo_topup' }
+        { text: '➤ Top Up Saldo', callback_data: 'saldo_topup' }
       ],
-      [{ text: '🔙 Menu Utama', callback_data: 'back_menu' }],
+      [{ text: '« Kembali', callback_data: 'back_menu' }],
     ],
   };
 
@@ -52,7 +52,7 @@ Minimal top up adalah <b>Rp 10.000</b>.</blockquote>`;
       [
         { text: '✍️ Custom Jumlah', callback_data: 'topup_custom' }
       ],
-      [{ text: '🔙 Kembali', callback_data: 'menu_saldo' }],
+      [{ text: '« Kembali', callback_data: 'menu_saldo' }],
     ],
   };
 
@@ -74,7 +74,7 @@ async function handleTopUpCustom(bot, chatId, messageId) {
 
   const keyboard = {
     inline_keyboard: [
-      [{ text: '🔙 Kembali', callback_data: 'saldo_topup' }]
+      [{ text: '« Kembali', callback_data: 'saldo_topup' }]
     ]
   };
 
@@ -95,7 +95,7 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
     const keyboard = {
       inline_keyboard: [
         [{ text: '✍️ Ketik Ulang', callback_data: 'topup_custom' }],
-        [{ text: '🔙 Kembali', callback_data: 'saldo_topup' }]
+        [{ text: '« Kembali', callback_data: 'saldo_topup' }]
       ]
     };
     await editMain(bot, chatId, errText, keyboard, messageId);
@@ -126,7 +126,7 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
 
     const keyboard = {
       inline_keyboard: [
-        [{ text: '🔙 Menu Saldo', callback_data: 'menu_saldo' }],
+        [{ text: '« Menu Saldo', callback_data: 'menu_saldo' }],
       ],
     };
 
@@ -140,8 +140,8 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
       const saldoText = `💰 <b>Informasi Saldo</b>\n\n👤 Akun: @${escapeHTML(from.username || '')}\n💵 Saldo Anda: <b>Rp ${formatRupiah(0)}</b>\n\n<i>(Top up sedang diproses)</i>`;
       const saldoKeyboard = {
         inline_keyboard: [
-          [{ text: '➕ Top Up Saldo', callback_data: 'topup_saldo' }],
-          [{ text: '🔙 Menu Utama', callback_data: 'back_menu' }],
+          [{ text: '➤ Top Up Saldo', callback_data: 'topup_saldo' }],
+          [{ text: '« Menu Utama', callback_data: 'back_menu' }],
         ],
       };
       await editMain(bot, chatId, saldoText, saldoKeyboard, session.mainMessageId || messageId);
@@ -149,7 +149,7 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
       // 2. Send the QR code as a SEPARATE message that can be closed
       const qrKeyboard = {
         inline_keyboard: [
-          [{ text: '❌ Tutup QRIS', callback_data: 'close_qris' }],
+          [{ text: '« Tutup QRIS', callback_data: 'close_qris' }],
         ],
       };
       const qrMsg = await bot.sendPhoto(chatId, qrBuffer, {

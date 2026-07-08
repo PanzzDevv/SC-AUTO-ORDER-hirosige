@@ -9,7 +9,7 @@ const BANNER_PATH = path.join(__dirname, '../../assets/banner.png');
 
 const REPLY_KEYBOARD = {
   keyboard: [
-    [{ text: '💰 Saldo' }, { text: '🆘 Pusat Bantuan' }],
+    [{ text: '➤ Cek Saldo' }, { text: '➤ Pusat Bantuan' }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -37,8 +37,8 @@ function buildMainKeyboard(chatId) {
   const miniAppUrl = `${baseUrl}/miniapp`;
   return {
     inline_keyboard: [
-      [{ text: '🛒 Beli Akun TikTok', callback_data: 'menu_beli' }],
-      ...(isAdmin ? [[{ text: '⚙️ Admin Panel', web_app: { url: miniAppUrl } }]] : []),
+      [{ text: '➤ Beli Akun TikTok', callback_data: 'menu_beli' }],
+      ...(isAdmin ? [[{ text: '⚙️ Panel Admin', web_app: { url: miniAppUrl } }]] : []),
     ],
   };
 }

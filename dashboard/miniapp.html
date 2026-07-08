@@ -178,14 +178,19 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:.75rem; margin-bottom:1rem;">
-          <div class="upload-drop" style="flex:1; margin-bottom:0; padding:1.5rem .5rem;" onclick="document.getElementById('fileInput').click()">
-            <div class="upload-drop-icon" style="font-size:2rem; margin-bottom:.5rem;">📦</div>
-            <p class="upload-drop-title" style="font-size:.85rem;">Upload ZIP</p>
-          </div>
-          <div class="upload-drop" style="flex:1; margin-bottom:0; padding:1.5rem .5rem; border-color:var(--success); background:rgba(16,185,129,0.05);" onclick="document.getElementById('folderInput').click()">
-            <div class="upload-drop-icon" style="font-size:2rem; margin-bottom:.5rem;">📁</div>
-            <p class="upload-drop-title" style="font-size:.85rem;">Upload Folder (Auto Zip)</p>
+        <div class="upload-zone" id="dropZone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <div class="upload-zone-content">
+            <div class="upload-zone-icon">📥</div>
+            <h3 class="upload-zone-title">Seret & Lepas Akun Di Sini</h3>
+            <p class="upload-zone-sub">Mendukung file ZIP tunggal, Master ZIP, atau Folder Akun</p>
+            <div class="upload-actions">
+              <button class="btn-upload-choice" onclick="document.getElementById('fileInput').click()">
+                <span>📦 Pilih ZIP</span>
+              </button>
+              <button class="btn-upload-choice folder" onclick="document.getElementById('folderInput').click()">
+                <span>📁 Pilih Folder</span>
+              </button>
+            </div>
           </div>
         </div>
         

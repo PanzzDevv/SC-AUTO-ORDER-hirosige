@@ -30,7 +30,7 @@ const QTY_KEYBOARD = (backData) => ({
     [
       { text: '200', callback_data: 'qty_200' },
     ],
-    [{ text: '🔙 Kembali', callback_data: backData }],
+    [{ text: '« Kembali', callback_data: backData }],
   ],
 });
 
@@ -56,10 +56,10 @@ Stok saat ini: <b>Garansi (${tg})</b> | <b>No Garansi (${tn})</b>`;
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '🧒 Akun Muda', callback_data: 'type_muda' },
-        { text: '👴 Akun Tua',  callback_data: 'type_tua'  },
+        { text: '❯ Akun Muda', callback_data: 'type_muda' },
+        { text: '❯ Akun Tua',  callback_data: 'type_tua'  },
       ],
-      [{ text: '🔙 Kembali', callback_data: 'back_menu' }],
+      [{ text: '« Kembali', callback_data: 'back_menu' }],
     ],
   };
 
@@ -88,10 +88,10 @@ Silakan pilih opsi garansi untuk keamanan akun Anda:
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Garansi',    callback_data: 'garansi_yes' },
-        { text: '❌ No Garansi', callback_data: 'garansi_no'  },
+        { text: '❯ Dengan Garansi', callback_data: 'garansi_yes' },
+        { text: '❯ Tanpa Garansi',  callback_data: 'garansi_no'  },
       ],
-      [{ text: '🔙 Kembali', callback_data: 'menu_beli' }],
+      [{ text: '« Kembali', callback_data: 'menu_beli' }],
     ],
   };
 
@@ -163,10 +163,10 @@ Lanjutkan ke pembayaran?`;
 
   const inline_keyboard = [];
   if (saldo >= total) {
-    inline_keyboard.push([{ text: '💰 Bayar Pakai Saldo', callback_data: 'pay_with_saldo' }]);
+    inline_keyboard.push([{ text: '➤ Bayar Pakai Saldo', callback_data: 'pay_with_saldo' }]);
   }
-  inline_keyboard.push([{ text: '💳 Bayar via QRIS (Pakasir)', callback_data: 'confirm_order' }]);
-  inline_keyboard.push([{ text: '❌ Batalkan', callback_data: 'menu_beli' }]);
+  inline_keyboard.push([{ text: '➤ Bayar via QRIS (Pakasir)', callback_data: 'confirm_order' }]);
+  inline_keyboard.push([{ text: '« Batalkan', callback_data: 'menu_beli' }]);
 
   const keyboard = { inline_keyboard };
 
@@ -212,7 +212,7 @@ Silakan scan kode QRIS di atas untuk membayar, atau gunakan link langsung beriku
 
     const keyboard = {
       inline_keyboard: [
-        [{ text: '🔙 Menu Utama', callback_data: 'back_menu' }],
+        [{ text: '« Menu Utama', callback_data: 'back_menu' }],
       ],
     };
 
