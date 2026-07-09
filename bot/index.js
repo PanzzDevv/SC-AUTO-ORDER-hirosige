@@ -271,7 +271,6 @@ bot.on('message', async (msg) => {
 
   // Reply keyboard: ➤ Cek Saldo
   if (text === '➤ Cek Saldo') {
-    bot.deleteMessage(chatId, msg.message_id).catch(() => {});
     try { await handleSaldo(bot, chatId, 'new', msg.from); }
     catch (e) { console.error('Saldo error:', e.message); }
     return;
@@ -279,7 +278,6 @@ bot.on('message', async (msg) => {
 
   // Reply keyboard: ➤ Pusat Bantuan
   if (text === '➤ Pusat Bantuan') {
-    bot.deleteMessage(chatId, msg.message_id).catch(() => {});
     try { await handleBantuan(bot, chatId, 'new'); }
     catch (e) { console.error('Bantuan error:', e.message); }
     return;

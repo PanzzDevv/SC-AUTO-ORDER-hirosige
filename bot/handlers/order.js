@@ -75,21 +75,26 @@ async function handleSelectType(bot, chatId, messageId, type) {
   const pG  = prices[getPriceKey(type, true)];
   const pNG = prices[getPriceKey(type, false)];
 
+  const stockG  = await getStockCount(type, true);
+  const stockNG = await getStockCount(type, false);
+
   const text = `🛡️ <b>Pilih Tipe Garansi (${typeName})</b>
 
 Silakan pilih opsi garansi untuk keamanan akun Anda:
 
 • ✅ <b>Dengan Garansi</b> — Rp ${formatRupiah(pG)}/akun
+Stok tersedia: <b>${stockG} akun</b>
 <i>Mendapatkan proteksi klaim ganti baru jika bermasalah.</i>
 
 • ❌ <b>Tanpa Garansi</b> — Rp ${formatRupiah(pNG)}/akun
+Stok tersedia: <b>${stockNG} akun</b>
 <i>Dijual apa adanya tanpa garansi (harga lebih hemat).</i>`;
 
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '❯ Dengan Garansi', callback_data: 'garansi_yes' },
-        { text: '❯ Tanpa Garansi',  callback_data: 'garansi_no'  },
+        { text: `❯ Dengan Garansi (${stockG})`, callback_data: 'garansi_yes' },
+        { text: `❯ Tanpa Garansi (${stockNG})`,  callback_data: 'garansi_no'  },
       ],
       [{ text: '« Kembali', callback_data: 'menu_beli' }],
     ],
