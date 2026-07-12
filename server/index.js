@@ -82,22 +82,25 @@ app.get('/miniapp', serveHtmlWithStoreName(path.join(__dirname, '../dashboard/mi
 const { bot } = require('../bot/index');
 setBotInstance(bot);
 
-// Setup Telegram Webhook otomatis saat berjalan di Vercel
-if (process.env.VERCEL === '1') {
+// Setup Telegram Webhook — JANGAN dipanggil saat cold start (memperlambat inisialisasi Vercel).
+// Gunakan endpoint GET /webhook/setup untuk mendaftarkan webhook 1x setelah deploy.
+app.get('/webhook/setup', async (req, res) => {
   const baseUrl = process.env.BASE_URL;
-  if (baseUrl) {
-    let formattedBaseUrl = baseUrl.trim();
-    if (!formattedBaseUrl.startsWith('http://') && !formattedBaseUrl.startsWith('https://')) {
-      formattedBaseUrl = `https://${formattedBaseUrl}`;
-    }
-    const webhookUrl = `${formattedBaseUrl}/webhook/telegram`;
-    bot.setWebHook(webhookUrl)
-      .then(() => console.log(`🛰️ Webhook Telegram set to: ${webhookUrl}`))
-      .catch(err => console.error('❌ Gagal set Telegram Webhook:', err.message));
-  } else {
-    console.warn('⚠️ VERCEL=1 terdeteksi tetapi BASE_URL belum diset di environment variables.');
+  if (!baseUrl) {
+    return res.status(400).json({ error: 'BASE_URL belum diset di environment variables.' });
   }
-}
+  let formattedBaseUrl = baseUrl.trim();
+  if (!formattedBaseUrl.startsWith('http://') && !formattedBaseUrl.startsWith('https://')) {
+    formattedBaseUrl = `https://${formattedBaseUrl}`;
+  }
+  const webhookUrl = `${formattedBaseUrl}/webhook/telegram`;
+  try {
+    await bot.setWebHook(webhookUrl);
+    res.json({ success: true, message: `✅ Webhook Telegram berhasil diset ke: ${webhookUrl}` });
+  } catch (err) {
+    res.status(500).json({ error: `❌ Gagal set webhook: ${err.message}` });
+  }
+});
 
 // ─── START SERVER ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

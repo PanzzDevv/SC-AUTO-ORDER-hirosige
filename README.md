@@ -221,10 +221,22 @@ Buka **Settings** > **Environment Variables** di project Vercel, lalu tambahkan:
 > 2. Copy **seluruh isi** file tersebut (termasuk tanda `{` dan `}`).
 > 3. Paste ke kolom **Value** environment variable di Vercel.
 
-### 5. Re-deploy
-Setelah semua variable terisi, klik **Deployments** > klik tombol **⋮** di deployment terbaru > **Redeploy**.
+### 5. Aktifkan Webhook Telegram (1x Saja)
+Setelah deploy pertama kali berhasil, buka URL berikut **1x saja** di browser kamu untuk mendaftarkan webhook bot ke Telegram:
 
-Bot Telegram kamu sekarang sudah berjalan di Vercel! 🚀
+```
+https://namaproject.vercel.app/webhook/setup
+```
+
+Ganti `namaproject.vercel.app` dengan URL Vercel kamu. Jika berhasil, akan muncul pesan:
+```json
+{ "success": true, "message": "✅ Webhook Telegram berhasil diset ke: ..." }
+```
+
+> ⚠️ Langkah ini **cukup dilakukan 1x**. Setelah webhook terdaftar, bot akan otomatis menerima pesan tanpa perlu setup ulang. Kamu hanya perlu mengulangi langkah ini jika URL Vercel berubah.
+
+### 6. Selesai! 🎉
+Bot Telegram kamu sekarang sudah berjalan di Vercel!
 
 ---
 
