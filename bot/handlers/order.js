@@ -465,14 +465,36 @@ File akun Anda dikirimkan di bawah ini secara langsung dalam <b>${totalParts} ba
         console.log(`📦 Merakit ZIP untuk Part ${partIdx + 1} (${partAccounts.length} akun)...`);
         const tempZipPath = await createZipFromAccounts(partAccounts, `${orderId}_part${partIdx + 1}`);
 
-        console.log(`📤 Mengirim Part ${partIdx + 1}/${totalParts} ke chat Telegram...`);
-        await bot.sendDocument(chatId, fs.createReadStream(tempZipPath), {
-          caption: `📦 <b>Bagian ${partIdx + 1}/${totalParts} (${partAccounts.length} akun)</b>\n🆔 Order ID: <code>${order.pakasirOrderId || orderId}</code>`,
-          parse_mode: 'HTML',
-        }, {
+        console.log(`📤 Mengirim Part ${partIdx + 1}/${totalParts} ke chat Telegram menggunakan Axios...`);
+        const FormData = require('form-data');
+        const https = require('https');
+        const httpsAgent = new https.Agent({ keepAlive: true, family: 4 });
+
+        const form = new FormData();
+        form.append('chat_id', String(chatId));
+        form.append('document', fs.createReadStream(tempZipPath), {
           filename: partZipName,
           contentType: 'application/zip'
         });
+        form.append('caption', `📦 <b>Bagian ${partIdx + 1}/${totalParts} (${partAccounts.length} akun)</b>\n🆔 Order ID: <code>${order.pakasirOrderId || orderId}</code>`);
+        form.append('parse_mode', 'HTML');
+
+        try {
+          await axios.post(
+            `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendDocument`,
+            form,
+            {
+              headers: form.getHeaders(),
+              httpsAgent,
+              maxContentLength: Infinity,
+              maxBodyLength: Infinity
+            }
+          );
+          console.log(`✅ Sukses mengirim Part ${partIdx + 1}/${totalParts}`);
+        } catch (uploadErr) {
+          console.error(`❌ Gagal mengirim Part ${partIdx + 1}:`, uploadErr.response?.data || uploadErr.message);
+          throw uploadErr;
+        }
 
         cleanupZip(tempZipPath);
       }
