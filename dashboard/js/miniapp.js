@@ -502,7 +502,7 @@ function setOverlay(title, desc, percent) {
   if (ov) {
     ov.style.display = 'flex';
     document.getElementById('loadingTitle').textContent = title;
-    document.getElementById('loadingDesc').textContent = desc;
+    document.getElementById('loadingDesc').innerHTML = desc;
     document.getElementById('loadingProgBar').style.width = percent + '%';
   }
 }
@@ -622,13 +622,21 @@ async function doUpload() {
   let failCount = 0;
   const errors = [];
 
-  setOverlay('Mengupload Akun', `Mempersiapkan upload (0/${selectedFiles.length})...`, 0);
+  setOverlay(
+    'Mengupload Akun', 
+    `Mempersiapkan upload (0/${selectedFiles.length})...<br><small style="color:#ffcc00;margin-top:0.5rem;display:block;">⚠️ Jangan tutup Mini App selama proses berlangsung!</small>`, 
+    0
+  );
 
   try {
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
       const progressPercent = Math.round((i / selectedFiles.length) * 100);
-      setOverlay('Mengupload Akun', `Mengupload ${file.name} (${i + 1}/${selectedFiles.length})...`, progressPercent);
+      setOverlay(
+        'Mengupload Akun', 
+        `Mengupload ${file.name} (${i + 1}/${selectedFiles.length})...<br><small style="color:#ffcc00;margin-top:0.5rem;display:block;">⚠️ Jangan tutup Mini App selama proses berlangsung!</small>`, 
+        progressPercent
+      );
 
       const formData = new FormData();
       formData.append('type', selectedType);

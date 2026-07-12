@@ -2,6 +2,12 @@ const fs = require('fs');
 const axios = require('axios');
 const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
+const https = require('https');
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  family: 4
+});
 
 // Instance bot khusus untuk storage (tanpa polling, agar tidak konflik dengan bot utama)
 let _storageBot = null;
@@ -85,6 +91,7 @@ async function downloadFileFromTelegram(fileId, destPath) {
     method: 'GET',
     url: fileLink,
     responseType: 'stream',
+    httpsAgent
   });
 
   return new Promise((resolve, reject) => {

@@ -33,9 +33,9 @@ router.post('/pakasir', async (req, res) => {
     // Update status to paid
     await updateOrderStatus(order.id, 'paid');
 
-    // Deliver the order (async, don't await so webhook responds fast)
+    // Deliver the order (AWAIT on Vercel so the serverless function stays alive until delivery is complete)
     if (botInstance) {
-      deliverOrder(botInstance, order.id).catch(console.error);
+      await deliverOrder(botInstance, order.id).catch(console.error);
     }
 
     res.json({ success: true, orderId: order.id });

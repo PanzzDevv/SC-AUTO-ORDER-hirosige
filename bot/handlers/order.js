@@ -554,7 +554,7 @@ async function handlePayWithSaldo(bot, chatId, messageId, from) {
     );
 
     // Jalankan pengiriman order
-    deliverOrder(bot, order.id).catch(console.error);
+    await deliverOrder(bot, order.id).catch(console.error);
 
   } catch (err) {
     console.error('Pay with saldo error:', err.message);
