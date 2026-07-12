@@ -91,19 +91,11 @@ if (process.env.VERCEL === '1') {
       formattedBaseUrl = `https://${formattedBaseUrl}`;
     }
     const webhookUrl = `${formattedBaseUrl}/webhook/telegram`;
-    bot.getWebhookInfo().then(info => {
-      if (info.url !== webhookUrl) {
-        bot.setWebHook(webhookUrl)
-          .then(() => console.log(`🛰️ Webhook Telegram set to: ${webhookUrl}`))
-          .catch(err => console.error('❌ Gagal set Telegram Webhook:', err.message));
-      } else {
-        console.log(`🛰️ Webhook Telegram sudah sesuai: ${webhookUrl}`);
-      }
-    }).catch(err => {
-      console.error('❌ Gagal membaca Webhook Info dari Telegram:', err.message);
-    });
+    bot.setWebHook(webhookUrl)
+      .then(() => console.log(`🛰️ Webhook Telegram set to: ${webhookUrl}`))
+      .catch(err => console.error('❌ Gagal set Telegram Webhook:', err.message));
   } else {
-    console.warn('⚠️ VERCEL=1 terdeteksi tetapi BASE_URL belum diset di environment variables. Webhook Telegram gagal di-setup otomatis.');
+    console.warn('⚠️ VERCEL=1 terdeteksi tetapi BASE_URL belum diset di environment variables.');
   }
 }
 
