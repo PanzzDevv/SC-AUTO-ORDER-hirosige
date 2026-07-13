@@ -328,7 +328,7 @@ function showOrderDetail(orderId) {
   const order = allOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  const typeName = order.type === 'muda' ? '🧒 Akun Tiktok x Line' : '👴 Akun Tiktok x Gsuite';
+  const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
   const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
 
   const canConfirm = order.status === 'pending' || order.status === 'paid';

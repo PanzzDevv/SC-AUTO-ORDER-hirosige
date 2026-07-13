@@ -29,6 +29,9 @@ const QTY_KEYBOARD = (backData) => ({
     ],
     [
       { text: '200', callback_data: 'qty_200' },
+      { text: '300', callback_data: 'qty_300' },
+      { text: '400', callback_data: 'qty_400' },
+      { text: '500', callback_data: 'qty_500' },
     ],
     [{ text: '« Kembali', callback_data: backData }],
   ],
@@ -47,17 +50,17 @@ async function handleBeli(bot, chatId, messageId) {
 
 Silakan pilih kategori akun yang Anda butuhkan:
 
-• 🧒 <b>Akun Tiktok x Line</b> (Fresh / Baru)
+• 🧒 <b>Fresh Usia 0 Day</b>
 Stok saat ini: <b>Garansi (${mg})</b> | <b>No Garansi (${mn})</b>
 
-• 👴 <b>Akun Tiktok x Gsuite</b> (Berumur / Kuat)
+• 👴 <b>Fresh Usia 2-8 Day</b>
 Stok saat ini: <b>Garansi (${tg})</b> | <b>No Garansi (${tn})</b>`;
 
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '❯ Akun Tiktok x Line', callback_data: 'type_muda' },
-        { text: '❯ Akun Tiktok x Gsuite',  callback_data: 'type_tua'  },
+        { text: '❯ Fresh Usia 0 Day', callback_data: 'type_muda' },
+        { text: '❯ Fresh Usia 2-8 Day',  callback_data: 'type_tua'  },
       ],
       [{ text: '« Kembali', callback_data: 'back_menu' }],
     ],
@@ -69,7 +72,7 @@ Stok saat ini: <b>Garansi (${tg})</b> | <b>No Garansi (${tn})</b>`;
 // ─── STEP 2: Pilih garansi ────────────────────────────────────────────────────
 async function handleSelectType(bot, chatId, messageId, type) {
   getSession(chatId).type = type;
-  const typeName = type === 'muda' ? 'Akun Tiktok x Line' : 'Akun Tiktok x Gsuite';
+  const typeName = type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
 
   const prices = await getPrices();
   const pG  = prices[getPriceKey(type, true)];
@@ -113,7 +116,7 @@ async function handleSelectGaransi(bot, chatId, messageId, garansi) {
   const stock  = await getStockCount(session.type, garansi);
   session.pricePerUnit = price;
 
-  const typeName    = session.type === 'muda' ? 'Akun Tiktok x Line' : 'Akun Tiktok x Gsuite';
+  const typeName    = session.type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
   const garansiName = garansi ? '✅ Garansi' : '❌ No Garansi';
 
   const text = `📦 <b>${typeName} — ${garansiName}</b>
@@ -146,7 +149,7 @@ async function handleQtySelected(bot, chatId, messageId, qty) {
   const total       = pricePerUnit * qty;
   session.totalPrice = total;
 
-  const typeName    = type === 'muda' ? 'Akun Tiktok x Line' : 'Akun Tiktok x Gsuite';
+  const typeName    = type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
   const garansiName = garansi ? '✅ Garansi' : '❌ No Garansi';
 
   // Ambil saldo user untuk konfirmasi pembayaran
@@ -201,7 +204,7 @@ async function handleConfirmOrder(bot, chatId, messageId, from) {
     );
     session.orderId = order.id;
 
-    const typeName    = type === 'muda' ? 'Akun Tiktok x Line' : 'Akun Tiktok x Gsuite';
+    const typeName    = type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
     const garansiName = garansi ? 'Garansi' : 'No Garansi';
 
     const text = `💳 <b>Detail Pembayaran QRIS (Pakasir)</b>

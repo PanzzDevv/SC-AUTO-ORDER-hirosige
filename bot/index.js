@@ -647,7 +647,7 @@ bot.on('callback_query', async (query) => {
           let stockText = '';
           stock.forEach(s => {
             const garansiLabel = s.garansi ? 'Garansi' : 'No Garansi';
-            const typeLabel = s.type === 'muda' ? 'Tiktok x Line' : 'Tiktok x Gsuite';
+            const typeLabel = s.type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
             stockText += `• ${typeLabel} (${garansiLabel}): <b>${s.count} akun</b>\n`;
           });
 
@@ -771,7 +771,7 @@ bot.on('callback_query', async (query) => {
             await bot.editMessageText('❌ Pesanan tidak ditemukan.', { chat_id: chatId, message_id: messageId });
             break;
           }
-          const typeName = order.type === 'muda' ? '🧒 Akun Tiktok x Line' : '👴 Akun Tiktok x Gsuite';
+          const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
           const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
           const paymentMethod = order.paymentUrl === 'Paid with Balance' ? 'Potong Saldo' : 'Pakasir QRIS';
           const dateStr = order.createdAt ? (order.createdAt.toDate ? order.createdAt.toDate().toLocaleString('id-ID') : new Date(order.createdAt).toLocaleString('id-ID')) : '—';

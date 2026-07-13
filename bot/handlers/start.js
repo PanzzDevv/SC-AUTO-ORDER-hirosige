@@ -19,10 +19,23 @@ function buildCaption(name) {
 
 🏪 Toko Akun TikTok otomatis terpercaya dengan pengiriman instan 24/7.
 
-<blockquote>⚡ <b>Info Layanan:</b>
-• Menyediakan Akun TikTok Siap Pakai (Muda & Tua)
-• Mendukung pembayaran otomatis via QRIS & Saldo
-• Pesanan langsung dikirim detik itu juga setelah bayar</blockquote>
+📊 <b><u>Rate Akun TikTok</u></b>
+• <b>Kategori:</b> Fresh Usia 0 Day & Fresh Usia 2-8 Day
+• <b>Harga:</b> Rp 3.000 / akun
+• <b>Minimal Pembelian:</b> 10 akun
+
+<blockquote>⚠️ <b>Penting (Update Sistem TikTok):</b>
+Klaim voucher saat ini mulai random dari sistem TikTok.
+• Jika gagal klaim, harap jeda minimal 24 jam & lakukan restore akun.
+• Mohon pengertiannya untuk tidak komplain mengenai klaim voucher random ini.</blockquote>
+
+🛡️ <b>Ketentuan Garansi (24 Jam):</b>
+1. Akun terkena banned (sebelum digunakan)
+2. Akun sudah pernah digunakan orang lain
+3. Tidak ada voucher ongkir pada akun
+
+📨 <b>Syarat Klaim:</b> Wajib mengirimkan file backup akun.
+⚖️ <i>Membeli berarti memahami dan menyetujui ketentuan di atas.</i>
 
 Silakan klik tombol di bawah untuk mulai memesan! 👇`;
 }
