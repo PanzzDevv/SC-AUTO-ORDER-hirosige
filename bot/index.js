@@ -17,7 +17,7 @@ const { getSession }    = require('./sessions');
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-console.log('🤖 PanzzStore Bot is running...');
+console.log(`🤖 ${process.env.STORE_NAME || 'PanzzStore'} Bot is running...`);
 
 // ─── ADMIN PANEL HELPERS ───────────────────────────────────────────────────────
 async function showAdminPanel(bot, chatId, messageId) {
@@ -606,7 +606,8 @@ bot.on('callback_query', async (query) => {
 
       case data === 'kirim_pesan_admin': {
         session.waitingForBantuanMsg = true;
-        await bot.sendMessage(chatId, '💬 <b>Silakan ketik pesan Anda untuk Admin:</b>\n\n<i>Pesan Anda akan otomatis diteruskan ke admin PanzzStore.</i>', {
+        const storeName = process.env.STORE_NAME || 'PanzzStore';
+        await bot.sendMessage(chatId, `💬 <b>Silakan ketik pesan Anda untuk Admin:</b>\n\n<i>Pesan Anda akan otomatis diteruskan ke admin ${storeName}.</i>`, {
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [[{ text: '« Batal', callback_data: 'menu_bantuan' }]]

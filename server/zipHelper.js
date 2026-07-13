@@ -11,7 +11,7 @@ const AdmZip = require('adm-zip');
  * @returns {string} local path to the generated ZIP
  */
 async function createZipFromAccounts(accounts, orderId) {
-  const tempDir = path.join(os.tmpdir(), `panzzstore_${orderId}`);
+  const tempDir = path.join(os.tmpdir(), `order_temp_${orderId}`);
   const zipPath = path.join(os.tmpdir(), `order_${orderId}.zip`);
 
   // Create temp directory
