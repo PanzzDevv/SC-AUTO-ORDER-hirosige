@@ -19,22 +19,8 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 console.log('🤖 PanzzStore Bot is running...');
 
-// ─── /start ───────────────────────────────────────────────────────────────────
-bot.onText(/\/start/, async (msg) => {
-  try { await handleStart(bot, msg); }
-  catch (e) { console.error('Start error:', e.message); }
-});
-
-// ─── /admin ───────────────────────────────────────────────────────────────────
-bot.onText(/\/admin/, async (msg) => {
-  const chatId = msg.chat.id;
-  const adminIds = (process.env.ADMIN_TELEGRAM_ID || '').split(',').map(s => s.trim());
-
-  if (!adminIds.includes(String(chatId))) {
-    await bot.sendMessage(chatId, '❌ <b>Akses Ditolak!</b>\nAnda tidak terdaftar sebagai administrator.', { parse_mode: 'HTML' });
-    return;
-  }
-
+// ─── ADMIN PANEL HELPERS ───────────────────────────────────────────────────────
+async function showAdminPanel(bot, chatId, messageId) {
   const storeName = process.env.STORE_NAME || 'PanzzStore';
   let baseUrl = process.env.BASE_URL || '';
   if (baseUrl && !baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
@@ -57,7 +43,87 @@ bot.onText(/\/admin/, async (msg) => {
     ]
   };
 
+  if (messageId) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'HTML',
+        reply_markup: keyboard
+      });
+      return;
+    } catch {}
+  }
   await bot.sendMessage(chatId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+}
+
+async function showAdminUserDetail(bot, chatId, messageId, targetUserId, successMessage = '') {
+  const { getUser } = require('../server/firebase');
+  const { formatRupiah } = require('./utils');
+  try {
+    const user = await getUser(targetUserId);
+    if (!user) {
+      await bot.editMessageText('❌ Pengguna tidak ditemukan di database.', { chat_id: chatId, message_id: messageId });
+      return;
+    }
+    
+    let text = '';
+    if (successMessage) {
+      text += `${successMessage}\n\n`;
+    }
+    
+    text += `👤 <b>Detail Pengguna</b>\n\n` +
+      `• Username: @${user.username || '—'}\n` +
+      `• Nama: ${user.firstName || '—'}\n` +
+      `• Chat ID: <code>${targetUserId}</code>\n` +
+      `• Saldo: <b>Rp ${formatRupiah(user.saldo)}</b>\n` +
+      `• Total Order Selesai: <b>${user.totalOrders || 0}x</b>\n\n` +
+      `<i>Silakan pilih aksi cepat di bawah ini:</i>`;
+    
+    await bot.editMessageText(text, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '➕ Tambah Saldo', callback_data: `admin_add_saldo_${targetUserId}` },
+            { text: '➖ Kurangi Saldo', callback_data: `admin_sub_saldo_${targetUserId}` }
+          ],
+          [
+            { text: '💬 Kirim Chat', callback_data: `admin_chat_user_${targetUserId}` }
+          ],
+          [
+            { text: '❌ Tutup', callback_data: 'admin_cancel_input' }
+          ]
+        ]
+      }
+    });
+  } catch (err) {
+    console.error('Show user detail error:', err.message);
+    try {
+      await bot.editMessageText('❌ Gagal mengambil data user.', { chat_id: chatId, message_id: messageId });
+    } catch {}
+  }
+}
+
+// ─── /start ───────────────────────────────────────────────────────────────────
+bot.onText(/\/start/, async (msg) => {
+  try { await handleStart(bot, msg); }
+  catch (e) { console.error('Start error:', e.message); }
+});
+
+// ─── /admin ───────────────────────────────────────────────────────────────────
+bot.onText(/\/admin/, async (msg) => {
+  const chatId = msg.chat.id;
+  const adminIds = (process.env.ADMIN_TELEGRAM_ID || '').split(',').map(s => s.trim());
+
+  if (!adminIds.includes(String(chatId))) {
+    await bot.sendMessage(chatId, '❌ <b>Akses Ditolak!</b>\nAnda tidak terdaftar sebagai administrator.', { parse_mode: 'HTML' });
+    return;
+  }
+
+  await showAdminPanel(bot, chatId);
 });
 
 // ─── TEXT MESSAGES ────────────────────────────────────────────────────────────
@@ -98,16 +164,36 @@ bot.on('message', async (msg) => {
     if (session.waitingForAdminUserMsg) {
       const targetUserId = session.waitingForAdminUserMsg;
       session.waitingForAdminUserMsg = false;
+      bot.deleteMessage(chatId, msg.message_id).catch(() => {});
       try {
         const { escapeHTML } = require('./utils');
         const { getUser } = require('../server/firebase');
         const user = await getUser(targetUserId);
         
         await bot.sendMessage(targetUserId, `✉️ <b>Pesan dari Admin:</b>\n\n<blockquote>${escapeHTML(text)}</blockquote>`, { parse_mode: 'HTML' });
-        await bot.sendMessage(chatId, `✅ <b>Pesan berhasil terkirim ke user @${user?.username || 'User'} (ID: ${targetUserId})!</b>`, { parse_mode: 'HTML' });
+        
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `✅ <b>Pesan berhasil terkirim ke user @${user?.username || 'User'}!</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
       } catch (err) {
         console.error('Failed to send admin message to user:', err.message);
-        await bot.sendMessage(chatId, `❌ Gagal mengirim pesan ke user: ${err.message}`);
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `❌ <b>Gagal mengirim pesan: ${err.message}</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
       }
       return;
     }
@@ -116,9 +202,20 @@ bot.on('message', async (msg) => {
     if (session.waitingForAddSaldo) {
       const targetUserId = session.waitingForAddSaldo;
       session.waitingForAddSaldo = false;
+      bot.deleteMessage(chatId, msg.message_id).catch(() => {});
+      
       const amt = parseInt(text.replace(/[^0-9]/g, ''));
       if (isNaN(amt) || amt <= 0) {
-        await bot.sendMessage(chatId, '❌ Nominal tidak valid. Input dibatalkan.');
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `❌ <b>Nominal tidak valid. Aksi dibatalkan.</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
         return;
       }
       try {
@@ -129,10 +226,29 @@ bot.on('message', async (msg) => {
         const user = await getUser(targetUserId);
         
         await bot.sendMessage(targetUserId, `💵 <b>Saldo Anda ditambahkan oleh Admin sebesar Rp ${formatRupiah(amt)}!</b>`, { parse_mode: 'HTML' });
-        await bot.sendMessage(chatId, `✅ <b>Berhasil menambahkan saldo sebesar Rp ${formatRupiah(amt)}!</b>\nSaldo saat ini untuk @${user?.username || 'User'}: <b>Rp ${formatRupiah(user.saldo)}</b>`, { parse_mode: 'HTML' });
+        
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `✅ <b>Berhasil menambahkan saldo Rp ${formatRupiah(amt)}!</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
       } catch (err) {
         console.error('Failed to add saldo:', err.message);
-        await bot.sendMessage(chatId, `❌ Gagal menambahkan saldo: ${err.message}`);
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `❌ <b>Gagal tambah saldo: ${err.message}</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
       }
       return;
     }
@@ -141,9 +257,20 @@ bot.on('message', async (msg) => {
     if (session.waitingForSubSaldo) {
       const targetUserId = session.waitingForSubSaldo;
       session.waitingForSubSaldo = false;
+      bot.deleteMessage(chatId, msg.message_id).catch(() => {});
+      
       const amt = parseInt(text.replace(/[^0-9]/g, ''));
       if (isNaN(amt) || amt <= 0) {
-        await bot.sendMessage(chatId, '❌ Nominal tidak valid. Input dibatalkan.');
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `❌ <b>Nominal tidak valid. Aksi dibatalkan.</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
         return;
       }
       try {
@@ -154,10 +281,29 @@ bot.on('message', async (msg) => {
         const user = await getUser(targetUserId);
         
         await bot.sendMessage(targetUserId, `💵 <b>Saldo Anda dikurangi oleh Admin sebesar Rp ${formatRupiah(amt)}!</b>`, { parse_mode: 'HTML' });
-        await bot.sendMessage(chatId, `✅ <b>Berhasil mengurangi saldo sebesar Rp ${formatRupiah(amt)}!</b>\nSaldo saat ini untuk @${user?.username || 'User'}: <b>Rp ${formatRupiah(user.saldo)}</b>`, { parse_mode: 'HTML' });
+        
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `✅ <b>Berhasil mengurangi saldo Rp ${formatRupiah(amt)}!</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
       } catch (err) {
         console.error('Failed to subtract saldo:', err.message);
-        await bot.sendMessage(chatId, `❌ Gagal mengurangi saldo: ${err.message}`);
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(
+            bot,
+            chatId,
+            session.adminPromptMessageId,
+            targetUserId,
+            `❌ <b>Gagal kurangi saldo: ${err.message}</b>`
+          );
+          session.adminPromptMessageId = null;
+        }
       }
       return;
     }
@@ -165,11 +311,21 @@ bot.on('message', async (msg) => {
     // 4. Waiting for Broadcast Message from Chat Command
     if (session.waitingForBroadcastMsg) {
       session.waitingForBroadcastMsg = false;
+      bot.deleteMessage(chatId, msg.message_id).catch(() => {});
+      
+      if (session.adminPromptMessageId) {
+        try {
+          await bot.editMessageText('⏳ <b>Memulai pengiriman broadcast ke seluruh user...</b>', {
+            chat_id: chatId,
+            message_id: session.adminPromptMessageId,
+            parse_mode: 'HTML'
+          });
+        } catch {}
+      }
+      
       try {
         const { getAllUsers } = require('../server/firebase');
         const users = await getAllUsers();
-        
-        await bot.sendMessage(chatId, `⏳ <b>Memulai pengiriman broadcast ke ${users.length} user...</b>`, { parse_mode: 'HTML' });
         
         let successCount = 0;
         let failCount = 0;
@@ -185,10 +341,36 @@ bot.on('message', async (msg) => {
         });
         await Promise.all(promises);
         
-        await bot.sendMessage(chatId, `✅ <b>Broadcast Selesai!</b>\n\n• Berhasil: <b>${successCount} user</b>\n• Gagal: <b>${failCount} user</b>`, { parse_mode: 'HTML' });
+        const resultText = `✅ <b>Broadcast Selesai!</b>\n\n• Berhasil: <b>${successCount} user</b>\n• Gagal: <b>${failCount} user</b>`;
+        
+        if (session.adminPromptMessageId) {
+          await bot.editMessageText(resultText, {
+            chat_id: chatId,
+            message_id: session.adminPromptMessageId,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '« Kembali ke Menu', callback_data: 'admin_cancel_input' }]]
+            }
+          });
+          session.adminPromptMessageId = null;
+        } else {
+          await bot.sendMessage(chatId, resultText, { parse_mode: 'HTML' });
+        }
       } catch (err) {
         console.error('Failed to run chat broadcast:', err.message);
-        await bot.sendMessage(chatId, `❌ Gagal memproses broadcast: ${err.message}`);
+        if (session.adminPromptMessageId) {
+          await bot.editMessageText(`❌ <b>Gagal memproses broadcast: ${err.message}</b>`, {
+            chat_id: chatId,
+            message_id: session.adminPromptMessageId,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '« Kembali ke Menu', callback_data: 'admin_cancel_input' }]]
+            }
+          });
+          session.adminPromptMessageId = null;
+        } else {
+          await bot.sendMessage(chatId, `❌ Gagal memproses broadcast: ${err.message}`);
+        }
       }
       return;
     }
@@ -196,27 +378,25 @@ bot.on('message', async (msg) => {
     // 5. Waiting for Search User
     if (session.waitingForSearchUser) {
       session.waitingForSearchUser = false;
+      bot.deleteMessage(chatId, msg.message_id).catch(() => {});
+      
       const query = text.trim();
       try {
         const { getUser, getUserByUsername } = require('../server/firebase');
-        const { formatRupiah } = require('./utils');
         
         let user = null;
         let targetUserId = null;
         
-        // If query starts with @ or is not a number, search by username
         if (query.startsWith('@') || isNaN(parseInt(query))) {
           user = await getUserByUsername(query);
           if (user) {
             targetUserId = String(user.telegramId || user.id);
           }
         } else {
-          // Try searching by Chat ID first
           user = await getUser(query);
           if (user) {
             targetUserId = query;
           } else {
-            // Fallback: try searching by username
             user = await getUserByUsername(query);
             if (user) {
               targetUserId = String(user.telegramId || user.id);
@@ -225,35 +405,46 @@ bot.on('message', async (msg) => {
         }
         
         if (!user || !targetUserId) {
-          await bot.sendMessage(chatId, '❌ Pengguna tidak ditemukan di database. Pastikan Chat ID atau Username benar.');
+          if (session.adminPromptMessageId) {
+            await bot.editMessageText('❌ <b>User tidak ditemukan!</b>\n\nPastikan Chat ID atau Username benar.', {
+              chat_id: chatId,
+              message_id: session.adminPromptMessageId,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '🔍 Cari Lagi', callback_data: 'admin_search_user_init' }],
+                  [{ text: '« Batal', callback_data: 'admin_cancel_input' }]
+                ]
+              }
+            });
+            session.adminPromptMessageId = null;
+          } else {
+            await bot.sendMessage(chatId, '❌ Pengguna tidak ditemukan di database.');
+          }
           return;
         }
         
-        const infoText = `👤 <b>Detail Pengguna</b>\n\n` +
-          `• Username: @${user.username || '—'}\n` +
-          `• Nama: ${user.firstName || '—'}\n` +
-          `• Chat ID: <code>${targetUserId}</code>\n` +
-          `• Saldo: <b>Rp ${formatRupiah(user.saldo)}</b>\n` +
-          `• Total Order Selesai: <b>${user.totalOrders || 0}x</b>\n\n` +
-          `<i>Silakan pilih aksi cepat di bawah ini:</i>`;
-        
-        await bot.sendMessage(chatId, infoText, {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: '➕ Tambah Saldo', callback_data: `admin_add_saldo_${targetUserId}` },
-                { text: '➖ Kurangi Saldo', callback_data: `admin_sub_saldo_${targetUserId}` }
-              ],
-              [
-                { text: '💬 Kirim Chat', callback_data: `admin_chat_user_${targetUserId}` }
-              ]
-            ]
-          }
-        });
+        if (session.adminPromptMessageId) {
+          await showAdminUserDetail(bot, chatId, session.adminPromptMessageId, targetUserId);
+          session.adminPromptMessageId = null;
+        } else {
+          await bot.sendMessage(chatId, `👤 User ditemukan: @${user.username || 'User'}`);
+        }
       } catch (err) {
         console.error('Failed to search user:', err.message);
-        await bot.sendMessage(chatId, `❌ Terjadi kesalahan: ${err.message}`);
+        if (session.adminPromptMessageId) {
+          await bot.editMessageText(`❌ <b>Terjadi kesalahan: ${err.message}</b>`, {
+            chat_id: chatId,
+            message_id: session.adminPromptMessageId,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '« Batal', callback_data: 'admin_cancel_input' }]]
+            }
+          });
+          session.adminPromptMessageId = null;
+        } else {
+          await bot.sendMessage(chatId, `❌ Terjadi kesalahan: ${err.message}`);
+        }
       }
       return;
     }
@@ -434,7 +625,10 @@ bot.on('callback_query', async (query) => {
         session.waitingForAdminUserMsg = false;
         session.waitingForSearchUser = false;
         session.waitingForBroadcastMsg = true;
-        await bot.sendMessage(chatId, '📢 <b>Kirim Broadcast ke Seluruh Pengguna</b>\n\nSilakan ketik pesan broadcast Anda di sini (Mendukung HTML):', {
+        session.adminPromptMessageId = messageId;
+        await bot.editMessageText('📢 <b>Kirim Broadcast ke Seluruh Pengguna</b>\n\nSilakan ketik pesan broadcast Anda di sini (Mendukung HTML):', {
+          chat_id: chatId,
+          message_id: messageId,
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [[{ text: '« Batal', callback_data: 'admin_cancel_input' }]]
@@ -453,8 +647,8 @@ bot.on('callback_query', async (query) => {
           let stockText = '';
           stock.forEach(s => {
             const garansiLabel = s.garansi ? 'Garansi' : 'No Garansi';
-            const typeLabel = s.type === 'muda' ? 'Muda' : 'Tua';
-            stockText += `• TikTok ${typeLabel} (${garansiLabel}): <b>${s.count} akun</b>\n`;
+            const typeLabel = s.type === 'muda' ? 'Tiktok x Line' : 'Tiktok x Gsuite';
+            stockText += `• ${typeLabel} (${garansiLabel}): <b>${s.count} akun</b>\n`;
           });
 
           const text = `📊 <b>Statistik Penjualan & Stok</b>\n\n` +
@@ -466,17 +660,33 @@ bot.on('callback_query', async (query) => {
             `• Revenue: <b>Rp ${formatRupiah(stats.totalRevenue)}</b>\n\n` +
             `📦 <b>Ketersediaan Stok:</b>\n${stockText}`;
           
-          await bot.sendMessage(chatId, text, { parse_mode: 'HTML' });
+          await bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '« Kembali ke Menu', callback_data: 'admin_cancel_input' }]]
+            }
+          });
         } catch (err) {
           console.error('Admin view stats error:', err.message);
-          await bot.sendMessage(chatId, '❌ Gagal memuat statistik.');
+          await bot.editMessageText('❌ Gagal memuat statistik.', {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+              inline_keyboard: [[{ text: '« Kembali ke Menu', callback_data: 'admin_cancel_input' }]]
+            }
+          });
         }
         break;
       }
 
       case data === 'admin_search_user_init': {
         session.waitingForSearchUser = true;
-        await bot.sendMessage(chatId, '🔍 <b>Kelola Saldo User</b>\n\nSilakan kirimkan <b>Chat ID</b> atau <b>Username Telegram</b> (@username) user yang ingin Anda cari:', {
+        session.adminPromptMessageId = messageId;
+        await bot.editMessageText('🔍 <b>Kelola Saldo User</b>\n\nSilakan kirimkan <b>Chat ID</b> atau <b>Username Telegram</b> (@username) user yang ingin Anda cari:', {
+          chat_id: chatId,
+          message_id: messageId,
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [[{ text: '« Batal', callback_data: 'admin_cancel_input' }]]
@@ -491,56 +701,29 @@ bot.on('callback_query', async (query) => {
         session.waitingForSubSaldo = false;
         session.waitingForSearchUser = false;
         session.waitingForBroadcastMsg = false;
-        await bot.sendMessage(chatId, '❌ Aksi admin dibatalkan.');
+        session.adminPromptMessageId = null;
+        await showAdminPanel(bot, chatId, messageId);
         break;
       }
 
       // ─── ADMIN CALLBACK ACTIONS ───────────────────────────────────────────────
       case data.startsWith('admin_view_user_'): {
         const targetUserId = data.split('_')[3];
-        const { getUser } = require('../server/firebase');
-        const { formatRupiah } = require('./utils');
-        try {
-          const user = await getUser(targetUserId);
-          if (!user) {
-            await bot.sendMessage(chatId, '❌ Pengguna tidak ditemukan di database.');
-            break;
-          }
-          const text = `👤 <b>Detail Pengguna</b>\n\n` +
-            `• Username: @${user.username || '—'}\n` +
-            `• Nama: ${user.firstName || '—'}\n` +
-            `• Chat ID: <code>${targetUserId}</code>\n` +
-            `• Saldo: <b>Rp ${formatRupiah(user.saldo)}</b>\n` +
-            `• Total Order Selesai: <b>${user.totalOrders || 0}x</b>\n\n` +
-            `<i>Silakan pilih aksi cepat di bawah ini:</i>`;
-          
-          await bot.sendMessage(chatId, text, {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: '➕ Tambah Saldo', callback_data: `admin_add_saldo_${targetUserId}` },
-                  { text: '➖ Kurangi Saldo', callback_data: `admin_sub_saldo_${targetUserId}` }
-                ],
-                [
-                  { text: '💬 Kirim Chat', callback_data: `admin_chat_user_${targetUserId}` }
-                ]
-              ]
-            }
-          });
-        } catch (err) {
-          console.error('Admin view user error:', err.message);
-          await bot.sendMessage(chatId, '❌ Gagal mengambil data user.');
-        }
+        await showAdminUserDetail(bot, chatId, messageId, targetUserId);
         break;
       }
 
       case data.startsWith('admin_chat_user_'): {
         const targetUserId = data.split('_')[3];
         session.waitingForAdminUserMsg = targetUserId;
-        await bot.sendMessage(chatId, `💬 <b>Kirim pesan langsung ke user (ID: ${targetUserId}):</b>\n\nTulis pesan yang ingin Anda kirimkan. Pesan akan diteruskan oleh bot ke chat user.`, {
+        session.adminPromptMessageId = messageId;
+        const text = `💬 <b>Kirim pesan langsung ke user (ID: ${targetUserId}):</b>\n\nTulis pesan yang ingin Anda kirimkan. Pesan akan diteruskan oleh bot ke chat user.`;
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: [[{ text: '« Batal', callback_data: 'admin_cancel_input' }]]
+            inline_keyboard: [[{ text: '« Batal', callback_data: `admin_view_user_${targetUserId}` }]]
           }
         });
         break;
@@ -549,10 +732,14 @@ bot.on('callback_query', async (query) => {
       case data.startsWith('admin_add_saldo_'): {
         const targetUserId = data.split('_')[3];
         session.waitingForAddSaldo = targetUserId;
-        await bot.sendMessage(chatId, `➕ <b>Tambah Saldo User (ID: ${targetUserId}):</b>\n\nSilakan ketik jumlah saldo yang ingin <b>ditambahkan</b> (contoh: <code>10000</code> atau <code>50000</code>):`, {
+        session.adminPromptMessageId = messageId;
+        const text = `➕ <b>Tambah Saldo User (ID: ${targetUserId}):</b>\n\nSilakan ketik jumlah saldo yang ingin <b>ditambahkan</b> (contoh: <code>10000</code> atau <code>50000</code>):`;
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
           parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: [[{ text: '« Batal', callback_data: 'admin_cancel_input' }]]
+            inline_keyboard: [[{ text: '« Batal', callback_data: `admin_view_user_${targetUserId}` }]]
           }
         });
         break;
@@ -561,10 +748,14 @@ bot.on('callback_query', async (query) => {
       case data.startsWith('admin_sub_saldo_'): {
         const targetUserId = data.split('_')[3];
         session.waitingForSubSaldo = targetUserId;
-        await bot.sendMessage(chatId, `➖ <b>Kurangi Saldo User (ID: ${targetUserId}):</b>\n\nSilakan ketik jumlah saldo yang ingin <b>dikurangi</b> (contoh: <code>10000</code> atau <code>50000</code>):`, {
+        session.adminPromptMessageId = messageId;
+        const text = `➖ <b>Kurangi Saldo User (ID: ${targetUserId}):</b>\n\nSilakan ketik jumlah saldo yang ingin <b>dikurangi</b> (contoh: <code>10000</code> atau <code>50000</code>):`;
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
           parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: [[{ text: '« Batal', callback_data: 'admin_cancel_input' }]]
+            inline_keyboard: [[{ text: '« Batal', callback_data: `admin_view_user_${targetUserId}` }]]
           }
         });
         break;
@@ -577,7 +768,7 @@ bot.on('callback_query', async (query) => {
         try {
           const order = await getOrder(targetOrderId);
           if (!order) {
-            await bot.sendMessage(chatId, '❌ Pesanan tidak ditemukan.');
+            await bot.editMessageText('❌ Pesanan tidak ditemukan.', { chat_id: chatId, message_id: messageId });
             break;
           }
           const typeName = order.type === 'muda' ? '🧒 Akun Tiktok x Line' : '👴 Akun Tiktok x Gsuite';
@@ -596,19 +787,24 @@ bot.on('callback_query', async (query) => {
             `• <b>Status:</b> <b>${order.status.toUpperCase()}</b>\n` +
             `• <b>Tanggal:</b> ${dateStr}`;
           
-          await bot.sendMessage(chatId, text, {
+          await bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
                 [
                   { text: '👤 Kelola User', callback_data: `admin_view_user_${order.userId}` }
+                ],
+                [
+                  { text: '❌ Tutup', callback_data: 'admin_cancel_input' }
                 ]
               ]
             }
           });
         } catch (err) {
           console.error('Admin view order error:', err.message);
-          await bot.sendMessage(chatId, '❌ Gagal memuat detail order.');
+          await bot.editMessageText('❌ Gagal memuat detail order.', { chat_id: chatId, message_id: messageId });
         }
         break;
       }
