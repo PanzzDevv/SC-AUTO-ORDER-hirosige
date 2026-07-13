@@ -143,10 +143,10 @@ async function getStockItems(type, garansi) {
 
 async function getAllStock() {
   const categories = [
-    { type: 'muda', garansi: true,  label: 'Akun Tiktok Fresh 0 Day + Garansi' },
-    { type: 'muda', garansi: false, label: 'Akun Tiktok Fresh 0 Day + No Garansi' },
-    { type: 'tua',  garansi: true,  label: 'Akun Tiktok Fresh 2-8 Day + Garansi' },
-    { type: 'tua',  garansi: false, label: 'Akun Tiktok Fresh 2-8 Day + No Garansi' },
+    { type: 'muda', garansi: true,  label: 'Akun Tiktok Fresh Usia 0 Day + Garansi' },
+    { type: 'muda', garansi: false, label: 'Akun Tiktok Fresh Usia 0 Day + No Garansi' },
+    { type: 'tua',  garansi: true,  label: 'Akun Tiktok Fresh Usia 2-8 Day + Garansi' },
+    { type: 'tua',  garansi: false, label: 'Akun Tiktok Fresh Usia 2-8 Day + No Garansi' },
   ];
   const result = [];
   for (const cat of categories) {

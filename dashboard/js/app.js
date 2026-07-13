@@ -61,7 +61,7 @@ function statusBadge(status) {
 }
 
 function orderRow(order, compact = false) {
-  const typeName = order.type === 'muda' ? '🧒 Muda' : '👴 Tua';
+  const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
   const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
   const shortId = order.id.slice(0, 8) + '...';
 

@@ -277,7 +277,7 @@ async function loadStock() {
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
 function orderItemHTML(order) {
-  const typeName = order.type === 'muda' ? '🧒 Muda' : '👴 Tua';
+  const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
   const garansiName = order.garansi ? '✅' : '❌';
   return `<div class="order-item" onclick="showOrderDetail('${order.id}')">
     <div class="order-item-top">
