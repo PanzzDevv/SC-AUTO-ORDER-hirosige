@@ -237,7 +237,7 @@ async function addAccount(type, garansi, telegramFileId, fileName, storagePath =
 }
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
-async function createOrder(userId, username, type, garansi, qty, totalPrice, paymentUrl, pakasirOrderId) {
+async function createOrder(userId, username, type, garansi, qty, totalPrice, paymentUrl, panzzpayInvoiceId, extraData = {}) {
   const orderData = {
     userId: String(userId),
     username: username || '',
@@ -245,10 +245,12 @@ async function createOrder(userId, username, type, garansi, qty, totalPrice, pay
     garansi,
     qty,
     totalPrice,
-    paymentUrl,
-    pakasirOrderId,
+    paymentUrl: paymentUrl || '',
+    panzzpayInvoiceId: panzzpayInvoiceId || '',
+    pakasirOrderId: panzzpayInvoiceId || '', // backward compatibility
     status: 'pending',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    ...extraData,
   };
   const ref = await db.collection('orders').add(orderData);
   return { id: ref.id, ...orderData };
@@ -259,14 +261,27 @@ async function getOrder(orderId) {
   return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
-async function getOrderByPakasirId(pakasirOrderId) {
+async function getOrderByPanzzpayInvoiceId(invoiceId) {
   const snapshot = await db.collection('orders')
-    .where('pakasirOrderId', '==', pakasirOrderId)
+    .where('panzzpayInvoiceId', '==', invoiceId)
     .limit(1)
     .get();
-  if (snapshot.empty) return null;
-  const doc = snapshot.docs[0];
+  if (!snapshot.empty) {
+    const doc = snapshot.docs[0];
+    return { id: doc.id, ...doc.data() };
+  }
+  // Fallback to pakasirOrderId field if existing
+  const fallbackSnapshot = await db.collection('orders')
+    .where('pakasirOrderId', '==', invoiceId)
+    .limit(1)
+    .get();
+  if (fallbackSnapshot.empty) return null;
+  const doc = fallbackSnapshot.docs[0];
   return { id: doc.id, ...doc.data() };
+}
+
+async function getOrderByPakasirId(pakasirOrderId) {
+  return await getOrderByPanzzpayInvoiceId(pakasirOrderId);
 }
 
 async function updateOrderStatus(orderId, status, extra = {}) {
@@ -381,7 +396,7 @@ module.exports = {
   db, admin,
   getUser, getUserByUsername, createUser, getUserOrCreate, updateUserSaldo, getAllUsers, setUserSaldo,
   getAvailableAccounts, getStockCount, getStockItems, getAllStock, markAccountsSold, addAccount, deleteStockCategory,
-  createOrder, getOrder, getOrderByPakasirId, updateOrderStatus, getAllOrders, getOrderStats,
+  createOrder, getOrder, getOrderByPanzzpayInvoiceId, getOrderByPakasirId, updateOrderStatus, getAllOrders, getOrderStats,
   getPrices, updatePrices, getPriceKey,
   saveHelpTicket, getUserIdFromHelpTicket,
 };

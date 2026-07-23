@@ -93,6 +93,6 @@ const { verifyLicense } = require('./license');
   app.listen(PORT, () => {
     console.log(`🚀 ${process.env.STORE_NAME || 'PanzzStore'} Server running on http://localhost:${PORT}`);
     console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
-    console.log(`🔗 Webhook URL: http://localhost:${PORT}/webhook/pakasir`);
+    console.log(`🔗 Webhook URL: http://localhost:${PORT}/webhook/panzzpay`);
   });
 })();

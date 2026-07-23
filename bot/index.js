@@ -774,12 +774,12 @@ bot.on('callback_query', async (query) => {
           }
           const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
           const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
-          const paymentMethod = order.paymentUrl === 'Paid with Balance' ? 'Potong Saldo' : 'Pakasir QRIS';
+          const paymentMethod = order.paymentUrl === 'Paid with Balance' ? 'Potong Saldo' : 'PanzzPay QRIS';
           const dateStr = order.createdAt ? (order.createdAt.toDate ? order.createdAt.toDate().toLocaleString('id-ID') : new Date(order.createdAt).toLocaleString('id-ID')) : '—';
           
           const text = `📦 <b>Detail Pesanan</b>\n\n` +
             `• <b>Order ID (System):</b> <code>${targetOrderId}</code>\n` +
-            `• <b>Order ID (Pakasir):</b> <code>${order.pakasirOrderId || '—'}</code>\n` +
+            `• <b>Invoice ID (PanzzPay):</b> <code>${order.panzzpayInvoiceId || order.pakasirOrderId || '—'}</code>\n` +
             `• <b>Pembeli:</b> @${order.username || '—'} (ID: <code>${order.userId}</code>)\n` +
             `• <b>Kategori:</b> ${typeName} ${garansiName}\n` +
             `• <b>Jumlah:</b> <b>${order.qty} akun</b>\n` +

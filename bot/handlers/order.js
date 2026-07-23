@@ -173,7 +173,7 @@ Lanjutkan ke pembayaran?`;
   if (saldo >= total) {
     inline_keyboard.push([{ text: '➤ Bayar Pakai Saldo', callback_data: 'pay_with_saldo' }]);
   }
-  inline_keyboard.push([{ text: '➤ Bayar via QRIS (Pakasir)', callback_data: 'confirm_order' }]);
+  inline_keyboard.push([{ text: '➤ Bayar via QRIS (PanzzPay)', callback_data: 'confirm_order' }]);
   inline_keyboard.push([{ text: '« Batalkan', callback_data: 'menu_beli' }]);
 
   const keyboard = { inline_keyboard };
@@ -181,7 +181,50 @@ Lanjutkan ke pembayaran?`;
   await editMain(bot, chatId, text, keyboard, messageId);
 }
 
-// ─── STEP 5: Buat payment Pakasir ─────────────────────────────────────────────
+// Map menyimpan interval polling invoice aktif
+const activePollers = new Map();
+
+function startInvoiceAutoPolling(bot, orderId, panzzpayInvoiceId) {
+  if (!panzzpayInvoiceId) return;
+  if (activePollers.has(panzzpayInvoiceId)) {
+    clearInterval(activePollers.get(panzzpayInvoiceId));
+  }
+
+  const baseUrl = (process.env.PANZZPAY_BASE_URL || 'https://panzzpay.vercel.app').replace(/\/+$/, '');
+  let attempts = 0;
+  const maxAttempts = 225; // ~15 menit (225 * 4 detik)
+
+  const timer = setInterval(async () => {
+    attempts += 1;
+    if (attempts > maxAttempts) {
+      clearInterval(timer);
+      activePollers.delete(panzzpayInvoiceId);
+      return;
+    }
+
+    try {
+      const res = await axios.get(`${baseUrl}/api/invoices/${panzzpayInvoiceId}`, { timeout: 5000 });
+      if (res.data?.ok && res.data?.invoice?.status === 'PAID') {
+        clearInterval(timer);
+        activePollers.delete(panzzpayInvoiceId);
+
+        const { getOrder, updateOrderStatus } = require('../../server/firebase');
+        const order = await getOrder(orderId);
+        if (order && order.status !== 'done' && order.status !== 'processing') {
+          console.log(`🎉 [PanzzPay Auto-Poll] Invoice ${panzzpayInvoiceId} LUNAS! Delivering order ${orderId}...`);
+          await updateOrderStatus(orderId, 'paid');
+          deliverOrder(bot, orderId).catch(console.error);
+        }
+      }
+    } catch (e) {
+      // Abaikan error jaringan sementara saat polling
+    }
+  }, 4000);
+
+  activePollers.set(panzzpayInvoiceId, timer);
+}
+
+// ─── STEP 5: Buat payment PanzzPay ─────────────────────────────────────────────
 async function handleConfirmOrder(bot, chatId, messageId, from) {
   const session = getSession(chatId);
   const { type, garansi, qty, totalPrice } = session;
@@ -192,40 +235,52 @@ async function handleConfirmOrder(bot, chatId, messageId, from) {
     return;
   }
 
-  await editMain(bot, chatId, '⏳ <i>Membuat link pembayaran...</i>', {}, messageId);
+  await editMain(bot, chatId, '⏳ <i>Membuat link pembayaran QRIS PanzzPay...</i>', {}, messageId);
 
   try {
-    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const pakasirOrderId = `PNZ-${shortId}`;
-    const payment_url = `https://app.pakasir.com/pay/${process.env.PAKASIR_SLUG}/${totalPrice}?order_id=${pakasirOrderId}`;
+    const { generateQris } = require('../utils');
+    const qrisResult = await generateQris(totalPrice);
+
+    if (!qrisResult || !qrisResult.invoice) {
+      throw new Error('Gagal menghasilkan QRIS dari PanzzPay API');
+    }
+
+    const { buffer: qrBuffer, invoice } = qrisResult;
+    const finalAmount = invoice.total_amount || totalPrice;
+    const uniqueCode = invoice.unique_code || 0;
+    const panzzpayInvoiceId = invoice.id;
+    const baseUrl = (process.env.PANZZPAY_BASE_URL || 'https://panzzpay.vercel.app').replace(/\/+$/, '');
+    const paymentUrl = `${baseUrl}/#qrResultCard`;
 
     const order = await createOrder(
-      chatId, from.username, type, garansi, qty, totalPrice, payment_url, pakasirOrderId
+      chatId, from.username, type, garansi, qty, finalAmount, paymentUrl, panzzpayInvoiceId, {
+        baseAmount: totalPrice,
+        uniqueCode: uniqueCode
+      }
     );
     session.orderId = order.id;
 
     const typeName    = type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
     const garansiName = garansi ? 'Garansi' : 'No Garansi';
 
-    const text = `💳 <b>Detail Pembayaran QRIS (Pakasir)</b>
+    const text = `💳 <b>Detail Pembayaran QRIS (PanzzPay)</b>
 
 <blockquote>📦 <b>Detail Pesanan:</b>
 • Produk: <b>${qty}x TikTok ${typeName} (${garansiName})</b>
-• Total Tagihan: <code>Rp ${formatRupiah(totalPrice)}</code></blockquote>
+• Harga Produk: Rp ${formatRupiah(totalPrice)}
+• Kode Unik: <b>+Rp ${uniqueCode}</b>
+• <b>TOTAL BAYAR: <code>Rp ${formatRupiah(finalAmount)}</code></b> 👈 <i>(Wajib Pas)</i>
+• ID Invoice: <code>${panzzpayInvoiceId}</code></blockquote>
 
-Silakan scan kode QRIS di atas untuk membayar, atau gunakan link langsung berikut:
-🔗 <a href="${payment_url}">Klik Link Pembayaran</a>
+Silakan scan kode QRIS di atas untuk membayar dengan DANA, ShopeePay, GoPay, OVO, m-BCA, atau BRImo.
 
-<i>*Akun otomatis dikirim dalam hitungan detik setelah transfer sukses. QRIS berlaku 30 menit.</i>`;
+<i>*Akun otomatis dikirim dalam hitungan detik setelah transfer terverifikasi lunas. QRIS berlaku 15 menit.</i>`;
 
     const keyboard = {
       inline_keyboard: [
         [{ text: '« Menu Utama', callback_data: 'back_menu' }],
       ],
     };
-
-    const { generateQris } = require('../utils');
-    const qrBuffer = await generateQris(totalPrice, pakasirOrderId);
 
     if (qrBuffer) {
       // 1. Restore the main banner back to the Main Menu
@@ -250,10 +305,13 @@ Silakan scan kode QRIS di atas untuk membayar, atau gunakan link langsung beriku
       await editMain(bot, chatId, text, keyboard, messageId);
     }
     
+    // Mulai auto-polling invoice status ke PanzzPay
+    startInvoiceAutoPolling(bot, order.id, panzzpayInvoiceId);
+
     clearSession(chatId);
 
   } catch (err) {
-    console.error('Pakasir error:', err.response?.data || err.message);
+    console.error('PanzzPay order error:', err.response?.data || err.message);
     const adminUsername = process.env.ADMIN_USERNAME || 'panzzstore_admin';
     await editMain(bot, chatId,
       `❌ <b>Gagal membuat link pembayaran.</b>\nCoba beberapa saat lagi atau hubungi admin (@${adminUsername}).`, {
@@ -306,11 +364,11 @@ async function deliverOrder(bot, orderId) {
       const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
       if (adminTelegramId) {
         const adminMessage = `🔔 <b>NOTIFIKASI TRANSAKSI BARU (TOP-UP)</b>\n\n` +
-          `🆔 <b>Order ID (Pakasir):</b> <code>${order.pakasirOrderId || orderId}</code>\n` +
+          `🆔 <b>Invoice ID (PanzzPay):</b> <code>${order.panzzpayInvoiceId || order.pakasirOrderId || orderId}</code>\n` +
           `🆔 <b>Order ID (System):</b> <code>${orderId}</code>\n` +
           `👤 <b>Pembeli:</b> @${order.username || 'User'} (ID: <code>${order.userId}</code>)\n` +
           `💵 <b>Nominal Top-Up:</b> Rp ${formatRupiah(order.totalPrice)}\n` +
-          `💳 <b>Metode Pembayaran:</b> Pakasir QRIS\n` +
+          `💳 <b>Metode Pembayaran:</b> PanzzPay QRIS\n` +
           `⏱️ <b>Tanggal:</b> ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\n` +
           `✅ Status: <b>Saldo berhasil ditambahkan otomatis</b>`;
 
@@ -387,7 +445,7 @@ async function deliverOrder(bot, orderId) {
     const deliveryText = `✅ <b>Order Berhasil!</b>
     
 <blockquote>📦 <b>${order.qty}x Akun TikTok ${order.type === 'muda' ? 'Muda' : 'Tua'} ${order.garansi ? 'Garansi' : 'No Garansi'}</b>
-🆔 Order ID: <code>${order.pakasirOrderId || orderId}</code></blockquote>
+🆔 Invoice ID: <code>${order.panzzpayInvoiceId || order.pakasirOrderId || orderId}</code></blockquote>
 
 Silakan klik tombol di bawah ini untuk mendownload file akun Anda secara langsung:
 <i>⚠️ Link aktif selama 24 jam.</i>
@@ -414,9 +472,9 @@ Silakan klik tombol di bawah ini untuk mendownload file akun Anda secara langsun
     // Notify Admin of Purchase & Stock Alert Check
     const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
     if (adminTelegramId) {
-      const paymentMethod = order.paymentUrl === 'Paid with Balance' ? 'Potong Saldo' : 'Pakasir QRIS';
+      const paymentMethod = order.paymentUrl === 'Paid with Balance' ? 'Potong Saldo' : 'PanzzPay QRIS';
       const adminMessage = `🔔 <b>NOTIFIKASI TRANSAKSI BARU (PEMBELIAN)</b>\n\n` +
-        `🆔 <b>Order ID (Pakasir):</b> <code>${order.pakasirOrderId || orderId}</code>\n` +
+        `🆔 <b>Invoice ID (PanzzPay):</b> <code>${order.panzzpayInvoiceId || order.pakasirOrderId || orderId}</code>\n` +
         `🆔 <b>Order ID (System):</b> <code>${orderId}</code>\n` +
         `👤 <b>Pembeli:</b> @${order.username || 'User'} (ID: <code>${order.userId}</code>)\n` +
         `📦 <b>Produk:</b> ${order.qty}x Akun TikTok ${order.type === 'muda' ? 'Muda' : 'Tua'} ${order.garansi ? 'Garansi' : 'No Garansi'}\n` +
@@ -561,5 +619,5 @@ async function handlePayWithSaldo(bot, chatId, messageId, from) {
 module.exports = {
   handleBeli, handleSelectType, handleSelectGaransi,
   handleQtySelected, handleConfirmOrder, handleTextMessage,
-  deliverOrder, handlePayWithSaldo,
+  deliverOrder, handlePayWithSaldo, startInvoiceAutoPolling,
 };

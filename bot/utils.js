@@ -154,37 +154,53 @@ const axios = require('axios');
 const qrcode = require('qrcode');
 
 /**
- * Generate a QRIS image buffer using Pakasir API
+ * Generate a QRIS image buffer and invoice details using PanzzPay API
  */
-async function generateQris(amount, orderId) {
+async function generateQris(amount, orderId = null) {
   try {
-    const res = await axios.post('https://app.pakasir.com/api/transactioncreate/qris', {
-      project: process.env.PAKASIR_SLUG,
-      order_id: orderId,
-      amount: amount,
-      api_key: process.env.PAKASIR_API_KEY
-    });
-    
-    // Extract the QR string from the response
-    const qrString = res.data?.payment?.payment_number;
-    
-    if (!qrString) {
-      console.error('No QR String in response:', res.data);
-      throw new Error('QR string not found in Pakasir response');
+    const baseUrl = (process.env.PANZZPAY_BASE_URL || 'https://panzzpay.vercel.app').replace(/\/+$/, '');
+    const apiKey = process.env.PANZZPAY_API_KEY;
+
+    if (!apiKey) {
+      throw new Error('PANZZPAY_API_KEY is not configured in environment variables');
     }
-    
+
+    const res = await axios.post(`${baseUrl}/api/qris/generate`, {
+      base_amount: Number(amount),
+      auto_unique: true
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      },
+      timeout: 15000
+    });
+
+    if (!res.data?.ok || !res.data?.invoice) {
+      console.error('PanzzPay API error response:', res.data);
+      throw new Error(res.data?.message || 'Gagal memperoleh QRIS dari PanzzPay API');
+    }
+
+    const invoice = res.data.invoice;
+    const qrString = invoice.payload;
+
+    if (!qrString) {
+      console.error('No QR payload String in PanzzPay invoice:', invoice);
+      throw new Error('QR payload string not found in PanzzPay response');
+    }
+
     // Generate an image buffer from the QR string
     const rawQrBuffer = await qrcode.toBuffer(qrString, { 
       margin: 2,
       width: 400,
       color: { dark: '#000000', light: '#ffffff' }
     });
-    
+
     // --- BUILD PREMIUM FRAME ---
     const width = 600;
     const height = 850;
     const image = new Jimp(width, height);
-    
+
     // 1. Premium Gradient Background
     for (let y = 0; y < height; y++) {
       const ratio = y / height;
@@ -260,12 +276,12 @@ async function generateQris(amount, orderId) {
     const logoX = (width - logoW) / 2;
     const logoY = boxY - 30;
     drawRoundRect(image, logoX + 5, logoY + 5, logoW, 10, Jimp.rgbaToInt(0, 0, 0, 80), 0);
-    
+
     const realLogoPath = path.join(__dirname, '../assets/qris_logo.png');
     if (fs.existsSync(realLogoPath)) {
-        const qrisLogo = await Jimp.read(realLogoPath);
-        qrisLogo.resize(logoW, Jimp.AUTO);
-        image.composite(qrisLogo, logoX, logoY);
+      const qrisLogo = await Jimp.read(realLogoPath);
+      qrisLogo.resize(logoW, Jimp.AUTO);
+      image.composite(qrisLogo, logoX, logoY);
     }
 
     const fontBig = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
@@ -280,12 +296,12 @@ async function generateQris(amount, orderId) {
     const storeName = process.env.STORE_NAME || "PanzzStore";
     image.print(fontBig, 0, 65, { text: storeName, alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER }, width);
     image.print(fontMed, 0, boxY + boxSize + 30, { text: "SCAN UNTUK MEMBAYAR", alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER }, width);
-    image.print(fontSmall, 0, height - 40, { text: "Verifikasi Pembayaran Otomatis", alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER }, width);
-    
+    image.print(fontSmall, 0, height - 40, { text: "Verifikasi Pembayaran Otomatis (PanzzPay)", alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER }, width);
+
     const finalBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
-    return finalBuffer;
+    return { buffer: finalBuffer, invoice };
   } catch (err) {
-    console.error('Failed to generate QRIS:', err.response?.data || err.message);
+    console.error('Failed to generate QRIS via PanzzPay:', err.response?.data || err.message);
     return null;
   }
 }

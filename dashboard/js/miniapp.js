@@ -281,7 +281,7 @@ function orderItemHTML(order) {
   const garansiName = order.garansi ? '✅' : '❌';
   return `<div class="order-item" onclick="showOrderDetail('${order.id}')">
     <div class="order-item-top">
-      <span class="order-item-id">#${order.pakasirOrderId || order.id.slice(0,8)}</span>
+      <span class="order-item-id">#${order.panzzpayInvoiceId || order.pakasirOrderId || order.id.slice(0,8)}</span>
       ${statusBadge(order.status)}
     </div>
     <div class="order-item-user">@${order.username || 'unknown'}</div>
@@ -339,8 +339,8 @@ function showOrderDetail(orderId) {
       <span class="modal-row-val" style="font-family:monospace;font-size:.75rem">${order.id}</span>
     </div>
     <div class="modal-row">
-      <span class="modal-row-label">Order ID (Pakasir)</span>
-      <span class="modal-row-val" style="font-family:monospace;font-size:.75rem;color:#A855F7;font-weight:bold">${order.pakasirOrderId || '—'}</span>
+      <span class="modal-row-label">Invoice ID (PanzzPay)</span>
+      <span class="modal-row-val" style="font-family:monospace;font-size:.75rem;color:#A855F7;font-weight:bold">${order.panzzpayInvoiceId || order.pakasirOrderId || '—'}</span>
     </div>
     <div class="modal-row">
       <span class="modal-row-label">Pembeli</span>

@@ -102,27 +102,41 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
     return;
   }
 
-  await editMain(bot, chatId, '⏳ <i>Membuat link pembayaran top up...</i>', {}, messageId);
+  await editMain(bot, chatId, '⏳ <i>Membuat QRIS Top Up PanzzPay...</i>', {}, messageId);
 
   try {
-    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const pakasirOrderId = `TOP-${shortId}`;
-    const payment_url = `https://app.pakasir.com/pay/${process.env.PAKASIR_SLUG}/${amount}?order_id=${pakasirOrderId}`;
+    const { generateQris } = require('../utils');
+    const qrisResult = await generateQris(amount);
+
+    if (!qrisResult || !qrisResult.invoice) {
+      throw new Error('Gagal menghasilkan QRIS dari PanzzPay API');
+    }
+
+    const { buffer: qrBuffer, invoice } = qrisResult;
+    const finalAmount = invoice.total_amount || amount;
+    const uniqueCode = invoice.unique_code || 0;
+    const panzzpayInvoiceId = invoice.id;
+    const baseUrl = (process.env.PANZZPAY_BASE_URL || 'https://panzzpay.vercel.app').replace(/\/+$/, '');
+    const paymentUrl = `${baseUrl}/#qrResultCard`;
 
     const orderObj = await createOrder(
-      chatId, from.username, 'topup', false, 1, amount, payment_url, pakasirOrderId
+      chatId, from.username, 'topup', false, 1, finalAmount, paymentUrl, panzzpayInvoiceId, {
+        baseAmount: amount,
+        uniqueCode: uniqueCode
+      }
     );
     const orderId = orderObj.id;
 
-    const text = `💳 <b>Scan QRIS untuk Top Up Saldo</b>
+    const text = `💳 <b>Scan QRIS untuk Top Up Saldo (PanzzPay)</b>
 
 <blockquote>💰 Jumlah Top Up: <b>Rp ${formatRupiah(amount)}</b>
+🔢 Kode Unik: <b>+Rp ${uniqueCode}</b>
+💵 <b>TOTAL BAYAR: <code>Rp ${formatRupiah(finalAmount)}</code></b> 👈 <i>(Wajib Pas)</i>
+🆔 ID Invoice: <code>${panzzpayInvoiceId}</code>
 👤 Akun: @${escapeHTML(from.username || '')}</blockquote>
 
-🔗 <i>Atau bayar via link:</i> <a href="${payment_url}">Klik di Sini</a>
-
-<i>⚠️ QRIS berlaku 30 menit</i>
-<i>💵 Saldo otomatis bertambah setelah pembayaran berhasil dikonfirmasi</i>`;
+<i>⚠️ QRIS berlaku 15 menit</i>
+<i>💵 Saldo otomatis bertambah setelah pembayaran berhasil dikonfirmasi lunas</i>`;
 
     const keyboard = {
       inline_keyboard: [
@@ -130,14 +144,9 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
       ],
     };
 
-    const { generateQris } = require('../utils');
-    const qrBuffer = await generateQris(amount, pakasirOrderId);
-
     if (qrBuffer) {
       // 1. Restore the main banner back to the Saldo Menu
-      // We will just edit it back to the saldo menu text to avoid circular dependency
-
-      const saldoText = `💰 <b>Informasi Saldo</b>\n\n👤 Akun: @${escapeHTML(from.username || '')}\n💵 Saldo Anda: <b>Rp ${formatRupiah(0)}</b>\n\n<i>(Top up sedang diproses)</i>`;
+      const saldoText = `💰 <b>Informasi Saldo</b>\n\n👤 Akun: @${escapeHTML(from.username || '')}\n💵 Top Up Rp ${formatRupiah(finalAmount)} sedang menunggu pembayaran QRIS.`;
       const saldoKeyboard = {
         inline_keyboard: [
           [{ text: '➤ Top Up Saldo', callback_data: 'topup_saldo' }],
@@ -164,8 +173,14 @@ Anda memasukkan: Rp ${formatRupiah(amount)}.</blockquote>`;
       await editMain(bot, chatId, text, keyboard, messageId);
     }
 
+    // Mulai auto-polling invoice ke PanzzPay
+    const { startInvoiceAutoPolling } = require('./order');
+    if (startInvoiceAutoPolling) {
+      startInvoiceAutoPolling(bot, orderId, panzzpayInvoiceId);
+    }
+
   } catch (err) {
-    console.error('Pakasir Topup error:', err.response?.data || err.message);
+    console.error('PanzzPay Topup error:', err.response?.data || err.message);
     const adminUsername = process.env.ADMIN_USERNAME || 'panzzstore_admin';
     await editMain(bot, chatId,
       `❌ <b>Gagal membuat link pembayaran top up.</b>\nCoba beberapa saat lagi atau hubungi admin (@${adminUsername}).`, {
